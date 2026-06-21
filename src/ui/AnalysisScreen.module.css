@@ -35,6 +35,17 @@
   width: 100%;
   text-align: left;
 }
+.sectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.sectionHead .periods {
+  justify-content: flex-end;
+}
 .sectionTitle {
   font-size: 0.95rem;
   color: var(--text-h);
