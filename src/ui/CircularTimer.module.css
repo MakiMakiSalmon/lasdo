@@ -1,0 +1,64 @@
+.button {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-block;
+  line-height: 0;
+  border-radius: 50%;
+}
+.button:focus-visible {
+  outline: 3px solid var(--accent-border);
+  outline-offset: 4px;
+}
+
+.svg {
+  width: 240px;
+  max-width: 70vw;
+  height: auto;
+}
+
+.track {
+  fill: none;
+  stroke: var(--track);
+}
+
+.progress {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s linear;
+}
+/* 稼働中で進捗が単位を1周ぶん進むと外周が増える＝超過は良いこと（緑） */
+.running .progress {
+  stroke: var(--good);
+}
+
+.outer {
+  fill: none;
+  stroke: var(--good);
+  stroke-linecap: round;
+}
+
+.time {
+  fill: var(--text-h);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 34px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.label {
+  fill: var(--text);
+  font-size: 14px;
+  text-anchor: middle;
+}
+
+.count {
+  fill: var(--good);
+  font-size: 16px;
+  font-weight: 600;
+  text-anchor: middle;
+}

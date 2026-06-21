@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 import './App.css';
 import { useBlockStore } from './store/blockStore';
-import { TodayTimeline } from './ui/TodayTimeline';
+import { useViewStore } from './store/viewStore';
+import { RecordScreen } from './ui/RecordScreen';
 
 /**
- * 記録画面の組み立て途中（detailed-design 6）。
- * 現状は今日のタイムラインのみ。円形タイマーは後続 PR で中央に据える。
+ * ルート。view 状態を見て画面を出し分ける（detailed-design 5.3）。
  * UI は Repository を直接叩かず BlockStore 越しにデータへ触る。
+ * 分析/編集画面は後続 PR で追加する。
  */
 function App() {
   const blocks = useBlockStore((s) => s.blocks);
   const load = useBlockStore((s) => s.load);
+  const view = useViewStore((s) => s.view);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -20,13 +22,13 @@ function App() {
   return (
     <main className="app">
       <h1>lasdo</h1>
-      <p>実績を記録し、活動リズムを可視化するツール。</p>
-      {loaded ? (
-        <TodayTimeline blocks={blocks} />
-      ) : (
+      {!loaded ? (
         <p className="status">読み込み中…</p>
+      ) : view === 'record' ? (
+        <RecordScreen blocks={blocks} />
+      ) : (
+        <p className="note">この画面は後続 PR で実装します。</p>
       )}
-      <p className="note">※ 円形タイマーは後続 PR で実装します。</p>
     </main>
   );
 }
