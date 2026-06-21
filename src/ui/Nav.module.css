@@ -1,0 +1,25 @@
+.nav {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.item {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--text);
+  padding: 0.4rem 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.item:hover {
+  background: var(--social-bg);
+}
+.item.active {
+  color: var(--text-h);
+  font-weight: 600;
+  background: var(--accent-bg);
+}
