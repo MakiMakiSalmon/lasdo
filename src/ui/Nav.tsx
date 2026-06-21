@@ -5,6 +5,7 @@ import styles from './Nav.module.css';
 const ITEMS: ReadonlyArray<{ view: View; label: string }> = [
   { view: 'record', label: '記録' },
   { view: 'analysis', label: '分析' },
+  { view: 'edit', label: '編集' },
 ];
 
 export function Nav() {
