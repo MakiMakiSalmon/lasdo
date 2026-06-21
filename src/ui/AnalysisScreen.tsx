@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { BoxGroupBy } from '../domain/boxStats';
 import {
   DEFAULT_PERIOD,
   PERIOD_PRESETS,
@@ -6,8 +7,14 @@ import {
   type PeriodPreset,
 } from '../domain/period';
 import type { TimeBlock } from '../domain/timeBlock';
+import { BoxPlotChart } from './BoxPlotChart';
 import { WeekdayBarChart } from './WeekdayBarChart';
 import styles from './AnalysisScreen.module.css';
+
+const BOX_GROUPS: ReadonlyArray<{ value: BoxGroupBy; label: string }> = [
+  { value: 'weekday', label: '曜日別' },
+  { value: 'all', label: '全体' },
+];
 
 /**
  * 分析画面（たまに見る・detailed-design 6.3）。
@@ -22,6 +29,7 @@ export interface AnalysisScreenProps {
 
 export function AnalysisScreen({ blocks, now = new Date() }: AnalysisScreenProps) {
   const [preset, setPreset] = useState<PeriodPreset>(DEFAULT_PERIOD);
+  const [boxGroupBy, setBoxGroupBy] = useState<BoxGroupBy>('weekday');
 
   // now は描画ごとに新規生成されるが、その日内では同じレンジに落ちる。
   const nowKey = now.getTime();
@@ -50,6 +58,29 @@ export function AnalysisScreen({ blocks, now = new Date() }: AnalysisScreenProps
         <h2 className={styles.sectionTitle}>曜日別の活動時間</h2>
         <p className={styles.sectionNote}>1日あたりの平均アクティブ時間</p>
         <WeekdayBarChart blocks={blocks} range={range} />
+      </section>
+
+      <section className={styles.section}>
+        <div className={styles.sectionHead}>
+          <div>
+            <h2 className={styles.sectionTitle}>開始・終了の時間帯</h2>
+            <p className={styles.sectionNote}>その日の最初の開始と最後の終了の分布</p>
+          </div>
+          <div className={styles.periods}>
+            {BOX_GROUPS.map((g) => (
+              <button
+                key={g.value}
+                type="button"
+                className={`${styles.period} ${boxGroupBy === g.value ? styles.active : ''}`}
+                onClick={() => setBoxGroupBy(g.value)}
+                aria-pressed={boxGroupBy === g.value}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <BoxPlotChart blocks={blocks} range={range} groupBy={boxGroupBy} />
       </section>
     </div>
   );
