@@ -21,6 +21,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# --- Playwright（経過時間スクショ・このブランチ専用の生成物） ---
+test-results/
+playwright-report/
+.playwright/
+
 # --- 環境変数 / 機密 ---
 .env
 .env.*
