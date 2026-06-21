@@ -36,6 +36,32 @@ export function minutesFromDayStart(key: DayKey, d: Date): number {
   return (d.getTime() - dayWindow(key).start.getTime()) / 60_000;
 }
 
+/** タイムライン軸の総分数（5:00〜29:00 = 24時間）。 */
+export const TIMELINE_TOTAL_MINUTES = 24 * 60;
+
+/**
+ * 指定 lasdo 日に属するアクティブ帯を、5:00起点の経過分 [startMin, endMin) の
+ * リストで返す（1日タイムライン描画用）。startMin 昇順。
+ *
+ * 深夜またぎ区間はその日の窓に収まる部分だけが現れる（前後日に分かれる）。
+ */
+export function daySegments(
+  blocks: TimeBlock[],
+  key: DayKey,
+): Array<{ startMin: number; endMin: number }> {
+  const result: Array<{ startMin: number; endMin: number }> = [];
+  for (const b of blocks) {
+    for (const seg of splitByDayBoundary(b)) {
+      if (seg.key !== key) continue;
+      result.push({
+        startMin: minutesFromDayStart(key, seg.start),
+        endMin: minutesFromDayStart(key, seg.end),
+      });
+    }
+  }
+  return result.sort((a, b) => a.startMin - b.startMin);
+}
+
 /**
  * 区間を lasdo 日の境界(5:00)で切り、各日に属する部分区間へ分割する。
  *
