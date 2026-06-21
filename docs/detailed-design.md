@@ -102,11 +102,19 @@ function activeDurationMs(blocks: TimeBlock[], from: Date, to: Date): number;
 ### 3.2 曜日別合計
 
 ```ts
-/** 各区間を lasdo 日に割り当て(またぎは分割)、曜日(0=日..6=土)ごとに合算(ミリ秒)。 */
-function durationByWeekday(blocks: TimeBlock[]): Record<number, number>;
+/**
+ * 各区間を lasdo 日に割り当て(またぎは分割)、曜日(0=日..6=土)ごとの
+ * 平均アクティブ時間/日（ミリ秒）を返す。
+ * 合計を「対象期間に含まれるその曜日の日数」で割る（期間可変でも公平に比較できる）。
+ */
+function avgDurationByWeekday(
+  blocks: TimeBlock[],
+  range: { from: Date; to: Date },
+): Record<number, number>;
 ```
 
-- `splitByDayBoundary` で日ごとに切ってから曜日へ集約。
+- `splitByDayBoundary` で日ごとに切ってから曜日へ合算し、`range` 内のその曜日の日数で割る。
+- 合計でなく**平均/日**にする理由: 期間プリセット（4/12週/全期間）が可変でも、曜日間の比較が範囲内の日数に左右されないため（requirements.md 4.5 / 6.4）。
 
 ### 3.3 開始/終了時刻の分布（箱ひげ図の素）
 
@@ -117,12 +125,12 @@ function durationByWeekday(blocks: TimeBlock[]): Record<number, number>;
  */
 function dailyStartEnd(
   blocks: TimeBlock[],
-  minBlockMinutes = 0,
+  minBlockMinutes = 5,
 ): Array<{ key: string; startMin: number; endMin: number }>;
 ```
 
 - `startMin`/`endMin` は 5:00 起点の経過分（0〜1440）。タイムライン軸 5:00〜29:00 と整合。
-- **既知の穴**（requirements.md 6.4）: 朝/深夜の極短区間で開始/終了が実態とズレる。MVPは `minBlockMinutes=0`（素直な定義）で出し、困れば値を上げるだけ。
+- **既知の穴の補正**（requirements.md 6.4）: 朝/深夜の極短区間で開始/終了がズレるため、`minBlockMinutes` 未満の区間は開始/終了判定から無視する。**MVP既定 = 5分**（`MIN_BLOCK_MINUTES = 5`、定数で調整可）。duration合計には影響しない。
 
 ---
 
@@ -210,11 +218,12 @@ interface TimerStore {
 
 ### 6.3 分析（ECharts）
 
-- 期間: **直近4週固定**（切替UIはMVP後回し）。
-- 曜日別棒: `durationByWeekday` を棒グラフへ。
+- 期間: **プリセット選択（直近4週／12週／全期間）**のトグルを画面上部に1つ。既定=直近4週。選択した `range` で全チャートを再集計（同一の filtered blocks を共有）。
+- 曜日別棒: `avgDurationByWeekday(blocks, range)` を棒グラフへ（**平均/日**）。
 - 箱ひげ: `dailyStartEnd` の `startMin`/`endMin` 分布を box plot へ。**曜日別7箱 ⇄ 全体1本のトグル切替**に対応（既定=曜日別）。
   - 集計関数を粒度引数で共通化する想定: `boxStats(rows, groupBy: 'weekday' | 'all')`。曜日別は7群、全体は1群を返す同一経路。
-- 開始/終了の極短区間補正: `dailyStartEnd` に「N分未満の区間を無視」する定数フック（`MIN_BLOCK_MINUTES = 0`＝無効）を用意。困れば値を上げるだけ（6.4 既知の穴）。
+  - 12週プリセットは曜日別箱のサンプル数（各曜日≒12点）を確保する狙いも兼ねる。
+- 開始/終了の極短区間補正: `dailyStartEnd` の `minBlockMinutes`（既定 **5分**）で吸収（6.4）。
 
 ### 6.4 編集フォーム
 
@@ -255,13 +264,14 @@ requirements.md 9章と対応。
 
 ### 確定（2026-06-21）
 - タイマー単位時間 = **25分**、`×N` 集約 = **外周3本/4本目以降集約**（6.1）。
-- 分析: 期間 = **直近4週固定**、箱ひげ = **曜日別7箱 ⇄ 全体1本トグル**（6.3）。
-- 箱ひげ極短区間補正 = **素直な定義 + 無視しきい値定数（既定0=無効）**（3.3 / 6.3）。
+- 分析: 期間 = **プリセット（直近4週/12週/全期間、既定4週）**、曜日別棒 = **平均/日**、箱ひげ = **曜日別7箱 ⇄ 全体1本トグル**（3.2 / 6.3）。
+- 箱ひげ極短区間補正 = **`minBlockMinutes` 既定5分**（開始/終了判定のみ。duration不影響）（3.3 / 6.3）。
 - フェーズ1画面 = **記録／分析／編集の3つ**。設定値は定数で保持。
 - タイマー稼働中の**リロード耐性をMVPに含める**（localStorage退避／5.2）。
+- 名前の由来 = **"last do"**（過去にやったこと＝実績の逆引き）。
 
 ### 残課題（任意・将来）
-- 「lasdo」の名前の由来・意味づけ（任意）。
-- 分析画面の期間切替UI（週/月/全期間）— データが貯まってから。
-- 極短区間補正の有効化（`MIN_BLOCK_MINUTES` の調整）— 実データで困れば。
+- 分析の期間プリセットの追加・任意レンジ指定 — 必要になれば。
+- 極短区間補正値（`MIN_BLOCK_MINUTES`）の調整 — 実データで合わなければ。
+- 箱ひげの「一定以上の空白で区切る」高度な補正 — 5分無視で足りなければ。
 </content>
