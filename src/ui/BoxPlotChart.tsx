@@ -80,6 +80,15 @@ function buildOption(
   };
 }
 
+function NoDataNotice({ labels }: { labels: string[] }) {
+  if (labels.length === 0) return null;
+  return (
+    <p className={styles.noData}>
+      データなし: {labels.join('、')}
+    </p>
+  );
+}
+
 export function BoxPlotChart({ blocks, range, groupBy }: BoxPlotChartProps) {
   const stats = useMemo(() => {
     const from = range.from.getTime();
@@ -90,6 +99,10 @@ export function BoxPlotChart({ blocks, range, groupBy }: BoxPlotChartProps) {
     });
     return boxStats(rows, groupBy);
   }, [blocks, range, groupBy]);
+  const noDataLabels = useMemo(
+    () => stats.filter((s) => s.count === 0).map((s) => s.label),
+    [stats],
+  );
 
   const theme = chartTheme();
   const startOption = useMemo(
@@ -111,6 +124,7 @@ export function BoxPlotChart({ blocks, range, groupBy }: BoxPlotChartProps) {
           notMerge
           opts={{ renderer: 'svg' }}
         />
+        <NoDataNotice labels={noDataLabels} />
       </div>
       <div className={styles.chart}>
         <p className={styles.caption}>終了時刻</p>
@@ -120,6 +134,7 @@ export function BoxPlotChart({ blocks, range, groupBy }: BoxPlotChartProps) {
           notMerge
           opts={{ renderer: 'svg' }}
         />
+        <NoDataNotice labels={noDataLabels} />
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { isValidBlock, type TimeBlock } from '../domain/timeBlock';
+import type { TimeBlock } from '../domain/timeBlock';
 import { useBlockStore } from '../store/blockStore';
-import { fromLocalInput, toLocalInput } from './datetimeInput';
+import { submitBlockForm, validateBlockForm } from './blockFormSubmit';
+import { toLocalInput } from './datetimeInput';
 import styles from './EditScreen.module.css';
 
 /**
@@ -58,14 +59,8 @@ function AddForm({
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
-    const s = fromLocalInput(start);
-    const e = fromLocalInput(end);
-    if (!s || !e) return setError('日時が正しくありません。');
-    if (!isValidBlock({ start: s, end: e })) {
-      return setError('終了は開始より後にしてください。');
-    }
-    setError(null);
-    await onAdd({ start: s, end: e });
+    const nextError = await submitBlockForm({ start, end }, onAdd);
+    setError(nextError);
   };
 
   return (
@@ -114,14 +109,10 @@ function BlockRow({
     start !== toLocalInput(block.start) || end !== toLocalInput(block.end);
 
   const save = async () => {
-    const s = fromLocalInput(start);
-    const e = fromLocalInput(end);
-    if (!s || !e) return setError('日時が正しくありません。');
-    if (!isValidBlock({ start: s, end: e })) {
-      return setError('終了は開始より後にしてください。');
-    }
+    const result = validateBlockForm({ start, end });
+    if (!result.ok) return setError(result.error);
     setError(null);
-    await onSave({ id: block.id, start: s, end: e });
+    await onSave({ id: block.id, ...result.block });
   };
 
   return (

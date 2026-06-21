@@ -8,5 +8,6 @@ export default defineConfig({
   test: {
     // ドメイン/集計ロジックの単体テストはDOM不要なので node 環境で実行
     environment: 'node',
+    exclude: ['**/node_modules/**', '**/dist/**', '**/.claude/**'],
   },
 })
