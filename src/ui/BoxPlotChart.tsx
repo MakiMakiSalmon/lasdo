@@ -24,6 +24,14 @@ export interface BoxPlotChartProps {
   groupBy: BoxGroupBy;
 }
 
+/** #rrggbb を薄い rgba に。塗りを淡くして枠線・中央値線を視認できるようにする。 */
+function withAlpha(color: string, alpha: number): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return color;
+  const n = Number.parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 /** 5:00起点の分 → 時計表示（例 240 → 9:00、1440 → 5:00）。 */
 function minToClock(min: number): string {
   const t = Math.round(min);
@@ -43,7 +51,8 @@ function buildOption(
   const data = stats.map((s) => (metric === 'start' ? s.start : s.end) ?? empty);
 
   return {
-    grid: { top: 16, right: 16, bottom: 28, left: 52 },
+    // 時刻を横軸に取り、横幅をフルに使って時間差を読み取りやすくする。
+    grid: { top: 16, right: 24, bottom: 32, left: 52 },
     tooltip: {
       trigger: 'item',
       formatter: (p: unknown) => {
@@ -59,22 +68,24 @@ function buildOption(
       },
     },
     xAxis: {
+      type: 'value',
+      axisLabel: { color: theme.text, formatter: (v: number) => minToClock(v) },
+      splitLine: { lineStyle: { color: theme.axis, opacity: 0.5 } },
+    },
+    yAxis: {
       type: 'category',
       data: labels,
       boundaryGap: true,
       axisLine: { lineStyle: { color: theme.axis } },
       axisLabel: { color: theme.text },
     },
-    yAxis: {
-      type: 'value',
-      axisLabel: { color: theme.text, formatter: (v: number) => minToClock(v) },
-      splitLine: { lineStyle: { color: theme.axis, opacity: 0.5 } },
-    },
     series: [
       {
         type: 'boxplot',
+        layout: 'horizontal',
         data,
-        itemStyle: { color: theme.accent, borderColor: color, borderWidth: 2 },
+        // 塗りは淡く・枠線/中央値線は同系色の濃色にして線を視認できるようにする。
+        itemStyle: { color: withAlpha(color, 0.22), borderColor: color, borderWidth: 2 },
       },
     ],
   };
@@ -101,13 +112,16 @@ export function BoxPlotChart({ blocks, range, groupBy }: BoxPlotChartProps) {
     [stats, theme],
   );
 
+  // 横向きでは曜日が縦に積まれるので、本数に応じて高さを確保する。
+  const height = Math.max(140, stats.length * 36 + 64);
+
   return (
     <div className={styles.charts}>
       <div className={styles.chart}>
         <p className={styles.caption}>開始時刻</p>
         <ReactECharts
           option={startOption}
-          style={{ height: 200, width: '100%' }}
+          style={{ height, width: '100%' }}
           notMerge
           opts={{ renderer: 'svg' }}
         />
@@ -116,7 +130,7 @@ export function BoxPlotChart({ blocks, range, groupBy }: BoxPlotChartProps) {
         <p className={styles.caption}>終了時刻</p>
         <ReactECharts
           option={endOption}
-          style={{ height: 200, width: '100%' }}
+          style={{ height, width: '100%' }}
           notMerge
           opts={{ renderer: 'svg' }}
         />

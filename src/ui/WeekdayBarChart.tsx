@@ -9,6 +9,13 @@ import { chartTheme } from './echartsTheme';
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 const MS_PER_HOUR = 3_600_000;
 
+function toHm(hours: number): string {
+  const totalMin = Math.round(hours * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m === 0 ? `${h}h` : `${h}h${m}m`;
+}
+
 /**
  * 曜日別の平均アクティブ時間/日（棒グラフ・detailed-design 6.3 / 実装優先順②）。
  * 合計でなく平均/日なので、期間プリセットが可変でも曜日間で公平に比較できる。
@@ -28,7 +35,7 @@ export function WeekdayBarChart({ blocks, range }: WeekdayBarChartProps) {
       grid: { top: 24, right: 16, bottom: 28, left: 44 },
       tooltip: {
         trigger: 'axis',
-        valueFormatter: (v) => `${Number(v).toFixed(1)} 時間/日`,
+        valueFormatter: (v) => toHm(Number(v)),
       },
       xAxis: {
         type: 'category',
@@ -38,9 +45,9 @@ export function WeekdayBarChart({ blocks, range }: WeekdayBarChartProps) {
       },
       yAxis: {
         type: 'value',
-        name: '時間/日',
+        name: '時間',
         nameTextStyle: { color: theme.text },
-        axisLabel: { color: theme.text, formatter: '{value}h' },
+        axisLabel: { color: theme.text, formatter: (v: number) => toHm(v) },
         splitLine: { lineStyle: { color: theme.axis, opacity: 0.5 } },
       },
       series: [
