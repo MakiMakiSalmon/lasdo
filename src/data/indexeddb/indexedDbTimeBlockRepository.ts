@@ -30,4 +30,14 @@ export class IndexedDbTimeBlockRepository implements TimeBlockRepository {
   async delete(id: string): Promise<void> {
     await db.timeBlocks.delete(id);
   }
+
+  async replaceAll(blocks: TimeBlock[]): Promise<void> {
+    // clear + bulkAdd を1トランザクションで（中断時の不整合を防ぐ）。
+    await db.transaction('rw', db.timeBlocks, async () => {
+      await db.timeBlocks.clear();
+      if (blocks.length > 0) {
+        await db.timeBlocks.bulkAdd(blocks.map(toRow));
+      }
+    });
+  }
 }

@@ -19,4 +19,10 @@ export interface TimeBlockRepository {
   update(block: TimeBlock): Promise<void>;
   /** 区間を削除する。 */
   delete(id: string): Promise<void>;
+  /**
+   * 全区間を与えた集合で原子的に置き換える（MVP の全置換永続化）。
+   * mergeBlocks で吸収・消滅した区間を残さない最も単純な反映手段。
+   * 件数が増えたら差分反映（reconcile）へ切り替える想定（detailed-design 5.1）。
+   */
+  replaceAll(blocks: TimeBlock[]): Promise<void>;
 }
