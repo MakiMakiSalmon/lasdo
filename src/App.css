@@ -1,0 +1,19 @@
+.app {
+  max-width: 32rem;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+  line-height: 1.6;
+}
+
+.app h1 {
+  margin-bottom: 0.25rem;
+}
+
+.status {
+  font-weight: 600;
+}
+
+.note {
+  color: #888;
+  font-size: 0.875rem;
+}
