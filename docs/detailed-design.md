@@ -111,12 +111,18 @@ function durationByWeekday(blocks: TimeBlock[]): Record<number, number>;
 ### 3.3 開始/終了時刻の分布（箱ひげ図の素）
 
 ```ts
-/** 各 lasdo 日の「最初の区間の開始」「最後の区間の終了」を集める。 */
-function dailyStartEnd(blocks: TimeBlock[]): Array<{ key: string; startMin: number; endMin: number }>;
+/**
+ * 各 lasdo 日の「最初の区間の開始」「最後の区間の終了」を集める。
+ * minBlockMinutes 未満の区間は開始/終了の判定から無視する（既定 0＝無効）。
+ */
+function dailyStartEnd(
+  blocks: TimeBlock[],
+  minBlockMinutes = 0,
+): Array<{ key: string; startMin: number; endMin: number }>;
 ```
 
 - `startMin`/`endMin` は 5:00 起点の経過分（0〜1440）。タイムライン軸 5:00〜29:00 と整合。
-- **既知の穴**（requirements.md 6.4）: 朝/深夜の極短区間で開始/終了が実態とズレる。当面は素直な定義のまま。困れば「短区間無視」等を後付け（9章）。
+- **既知の穴**（requirements.md 6.4）: 朝/深夜の極短区間で開始/終了が実態とズレる。MVPは `minBlockMinutes=0`（素直な定義）で出し、困れば値を上げるだけ。
 
 ---
 
@@ -176,13 +182,13 @@ interface BlockStore {
 ```ts
 interface TimerStore {
   runningSince: Date | null;   // 稼働中の開始時刻。null=停止中
-  start(): void;               // runningSince = now
+  start(): void;               // runningSince = now → localStorage へ退避
   stop(): Promise<void>;       // {start: runningSince, end: now} を BlockStore.addBlock
 }
 ```
 
-- 稼働中は永続化しない（停止時に確定して1区間を追加）。
-- リロード耐性が要れば `runningSince` を localStorage に退避（MVPでは任意）。
+- 稼働中は TimeBlock としては永続化しない（停止時に確定して1区間を追加）。
+- **リロード耐性をMVPに含める**: `runningSince` を localStorage に退避し、起動時に復元する。タブを閉じる/リロードしても稼働中タイマーが消えない。
 
 ---
 
@@ -192,9 +198,9 @@ interface TimerStore {
 
 - 中心 = 開始/停止トグル兼経過時間表示。
 - 内側の太いリング = 現在の単位時間の進捗（1周で単位達成）。
-- 単位達成ごとに外側へ細い同心円リングを1本追加。**超過＝良いこと**（緑系）。
-- 外周が増えすぎる前に `×N` 集約（外周は1本に戻す）。
-- **未確定**: 単位時間の具体値（1h?）、集約しきい値（外周何本で `×N`）→ requirements.md 9章。
+- **単位時間 = 25分**（`UNIT_MINUTES = 25` 定数。後から変更可）。単位達成ごとに外側へ細い同心円リングを1本追加。**超過＝良いこと**（緑系）。
+- **集約しきい値**: 外周3本まで描画し、4本目以降は `×N` 表記に集約して外周を1本に戻す（`RING_COLLAPSE_AT = 3` 定数。25分単位なら約100分で集約）。
+- 補足: 25分は「リングが1周する基準」であり休憩を強制しない（lasdo は休憩を記録しない）。
 
 ### 6.2 1日タイムライン（自前 SVG）
 
@@ -204,9 +210,11 @@ interface TimerStore {
 
 ### 6.3 分析（ECharts）
 
+- 期間: **直近4週固定**（切替UIはMVP後回し）。
 - 曜日別棒: `durationByWeekday` を棒グラフへ。
-- 箱ひげ: `dailyStartEnd` の `startMin`/`endMin` 分布を box plot へ。
-- **未確定**: 期間切替（週/月/全期間）、箱ひげを全体1本 vs 曜日別 → 9章。
+- 箱ひげ: `dailyStartEnd` の `startMin`/`endMin` 分布を box plot へ。**曜日別7箱 ⇄ 全体1本のトグル切替**に対応（既定=曜日別）。
+  - 集計関数を粒度引数で共通化する想定: `boxStats(rows, groupBy: 'weekday' | 'all')`。曜日別は7群、全体は1群を返す同一経路。
+- 開始/終了の極短区間補正: `dailyStartEnd` に「N分未満の区間を無視」する定数フック（`MIN_BLOCK_MINUTES = 0`＝無効）を用意。困れば値を上げるだけ（6.4 既知の穴）。
 
 ### 6.4 編集フォーム
 
@@ -241,13 +249,19 @@ interface TimerStore {
 
 ---
 
-## 9. 未確定事項（実装時に確定）
+## 9. 確定事項と残課題
 
-requirements.md 9章と対応。確定したら本書と requirements を更新する。
+requirements.md 9章と対応。
 
-- タイマー単位時間の値・`×N` 集約しきい値（6.1）。
-- 分析画面の期間切替／箱ひげの粒度（6.3）。
-- 箱ひげの開始/終了定義の補正（3.3 の既知の穴）。
-- 編集・履歴画面の詳細 UI（6.4）。
-- タイマー稼働中状態のリロード耐性（5.2）。
+### 確定（2026-06-21）
+- タイマー単位時間 = **25分**、`×N` 集約 = **外周3本/4本目以降集約**（6.1）。
+- 分析: 期間 = **直近4週固定**、箱ひげ = **曜日別7箱 ⇄ 全体1本トグル**（6.3）。
+- 箱ひげ極短区間補正 = **素直な定義 + 無視しきい値定数（既定0=無効）**（3.3 / 6.3）。
+- フェーズ1画面 = **記録／分析／編集の3つ**。設定値は定数で保持。
+- タイマー稼働中の**リロード耐性をMVPに含める**（localStorage退避／5.2）。
+
+### 残課題（任意・将来）
+- 「lasdo」の名前の由来・意味づけ（任意）。
+- 分析画面の期間切替UI（週/月/全期間）— データが貯まってから。
+- 極短区間補正の有効化（`MIN_BLOCK_MINUTES` の調整）— 実データで困れば。
 </content>
