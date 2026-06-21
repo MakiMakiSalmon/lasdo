@@ -1,0 +1,17 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  width: 100%;
+}
+
+.timer {
+  display: flex;
+  justify-content: center;
+  padding-top: 1rem;
+}
+
+.timeline {
+  width: 100%;
+}
