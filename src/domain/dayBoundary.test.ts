@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  daySegments,
   dayWindow,
   lasdoDayKey,
   minutesFromDayStart,
@@ -88,5 +89,42 @@ describe('splitByDayBoundary', () => {
       '2026-06-22',
       '2026-06-23',
     ]);
+  });
+});
+
+describe('daySegments', () => {
+  function block(start: Date, end: Date): TimeBlock {
+    return { id: Math.random().toString(36), start, end };
+  }
+
+  it('その日の帯を 5:00起点の分 [startMin, endMin) で返す（昇順）', () => {
+    const segs = daySegments(
+      [
+        block(dt(6, 21, 20), dt(6, 21, 22)), // 後の帯
+        block(dt(6, 21, 9), dt(6, 21, 12)), // 先の帯
+      ],
+      '2026-06-21',
+    );
+    expect(segs).toEqual([
+      { startMin: 4 * 60, endMin: 7 * 60 }, // 09:00-12:00
+      { startMin: 15 * 60, endMin: 17 * 60 }, // 20:00-22:00
+    ]);
+  });
+
+  it('5:00をまたぐ区間は当日窓に収まる部分だけ現れる', () => {
+    // 03:00→07:00 は 6/21 側に [22h,24h)、6/22 側に [0,2h) として分かれる。
+    const bs = [block(dt(6, 22, 3), dt(6, 22, 7))];
+    expect(daySegments(bs, '2026-06-21')).toEqual([
+      { startMin: 22 * 60, endMin: 24 * 60 },
+    ]);
+    expect(daySegments(bs, '2026-06-22')).toEqual([
+      { startMin: 0, endMin: 2 * 60 },
+    ]);
+  });
+
+  it('該当日に帯がなければ空配列', () => {
+    expect(daySegments([block(dt(6, 21, 9), dt(6, 21, 10))], '2026-06-22')).toEqual(
+      [],
+    );
   });
 });

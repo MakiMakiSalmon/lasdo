@@ -1,0 +1,44 @@
+.wrap {
+  width: 100%;
+  text-align: left;
+}
+
+.title {
+  font-size: 0.875rem;
+  color: var(--text);
+  margin: 0 0 0.5rem;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* 軸の枠・目盛 */
+.frame {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.tick {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.label {
+  fill: var(--text);
+  font-size: 13px;
+  font-family: var(--sans, system-ui, sans-serif);
+}
+
+/* アクティブ帯 */
+.band {
+  fill: var(--accent);
+  opacity: 0.85;
+}
+
+.empty {
+  fill: var(--text);
+  font-size: 13px;
+  opacity: 0.6;
+}
