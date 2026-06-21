@@ -1,0 +1,47 @@
+.screen {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.periods {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.period {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.period:hover {
+  border-color: var(--accent-border);
+}
+.period.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.section {
+  width: 100%;
+  text-align: left;
+}
+.sectionTitle {
+  font-size: 0.95rem;
+  color: var(--text-h);
+  margin: 0 0 0.25rem;
+}
+.sectionNote {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin: 0 0 0.5rem;
+}
