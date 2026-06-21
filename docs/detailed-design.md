@@ -180,10 +180,48 @@ interface BlockStore {
 
 - `addBlock`/`updateBlock` の手順:
   1. `isValidBlock` で検証（不正なら拒否）。
-  2. 既存 `blocks` + 新区間を `mergeBlocks`。
-  3. **差分を Repository に反映**（マージで消えた区間は delete、変化した区間は update、新規は add）。
-  4. ストアを更新。
-- マージで id が統合される点（2.2）に注意し、差分計算で永続化の整合を取る。
+  2. 既存 `blocks` + 新/更新区間を `mergeBlocks`。
+  3. **旧状態と新状態の差分を Repository に反映**（下記）。
+  4. ストアを新状態で更新。
+
+#### 差分永続化（reconcile）— 実装の要
+
+`mergeBlocks` は重なり/隣接を1区間に統合し、**結果の id は先頭区間のものを引き継ぐ**（2.2）。
+そのため「マージで吸収されて消えた区間」が DB に残らないよう、旧→新の差分を取って反映する。
+
+```ts
+// prev, next はいずれも mergeBlocks 済み（id 一意・start 昇順）
+async function reconcile(
+  repo: TimeBlockRepository,
+  prev: TimeBlock[],
+  next: TimeBlock[],
+): Promise<void> {
+  const prevById = new Map(prev.map(b => [b.id, b]));
+  const nextById = new Map(next.map(b => [b.id, b]));
+
+  // (1) next に無い id は削除（マージで吸収された・ユーザー削除）
+  for (const b of prev) {
+    if (!nextById.has(b.id)) await repo.delete(b.id);
+  }
+  // (2) next 側を追加 or 更新
+  for (const b of next) {
+    const before = prevById.get(b.id);
+    if (!before) {
+      // 新規 id。NewTimeBlock として add（採番は repo 側）
+      // ※ mergeBlocks は既存 id を引き継ぐので「真の新規」は add 前の入力に対応
+      await repo.add({ start: b.start, end: b.end });
+    } else if (before.start.getTime() !== b.start.getTime()
+            || before.end.getTime() !== b.end.getTime()) {
+      await repo.update(b);   // 端が伸びた区間
+    }
+  }
+}
+```
+
+- 注意点:
+  - **新規追加の id 採番**: 新ブロックは `mergeBlocks` に入れる前に一度 `repo.add` で採番してから集合に混ぜる、もしくは上記のように「prev に無い区間は add」で吸収する。どちらか一方の方針に統一する（二重採番を避ける）。実装時は前者（先に add → list 再取得 → set）のほうが単純で安全。
+  - **トランザクション境界**: Dexie の `db.transaction('rw', ...)` で (1)(2) を包むと中断時の不整合を防げる。
+  - MVPの簡易策として「`reconcile` を使わず、変更のたび全消し→全追加（clear + bulkAdd）」も選べる。区間数が小さいMVPでは十分実用的で、最も間違いが少ない。**MVPはこの全置換方式を既定**とし、件数が増えたら `reconcile` に切り替える。
 
 ### 5.2 タイマーストア
 
@@ -198,9 +236,27 @@ interface TimerStore {
 - 稼働中は TimeBlock としては永続化しない（停止時に確定して1区間を追加）。
 - **リロード耐性をMVPに含める**: `runningSince` を localStorage に退避し、起動時に復元する。タブを閉じる/リロードしても稼働中タイマーが消えない。
 
+### 5.3 画面（ビュー）ストア
+
+3画面の切替は **react-router を入れず Zustand の状態で出し分ける**（MVPの3画面には最軽量。URL同期が必要になったら router へ移行）。
+
+```ts
+type View = 'record' | 'analysis' | 'edit';
+
+interface ViewStore {
+  view: View;          // 既定 'record'
+  go(view: View): void;
+}
+```
+
+- ルート（`App.tsx`）は `view` を見て対応画面を描画するだけ。URLは変わらない／リロードで `record` に戻る（MVPでは許容）。
+
 ---
 
 ## 6. UI 仕様
+
+> **プラットフォーム方針（MVP）**: requirements.md 4.8 は「PC/スマホで根本的に作り分け」だが、**MVPは PC 先行**（スマホは後回し）。
+> 作業中にPCで記録する動線・ECharts分析の見やすさ・開発速度を優先する。データ/ロジック/ストアは共通なので、後からスマホ用 Presentation を `src/ui/` 配下に足すだけで分離できる（土台は無駄にならない）。
 
 ### 6.1 円形タイマー（自前 SVG）requirements.md 4.7
 
@@ -269,9 +325,14 @@ requirements.md 9章と対応。
 - フェーズ1画面 = **記録／分析／編集の3つ**。設定値は定数で保持。
 - タイマー稼働中の**リロード耐性をMVPに含める**（localStorage退避／5.2）。
 - 名前の由来 = **"last do"**（過去にやったこと＝実績の逆引き）。
+- 画面遷移 = **Zustand の `view` 状態で出し分け**（react-router 不使用／5.3）。
+- プラットフォーム = **MVPは PC 先行**（スマホは後回し。store/domain/data は共通／6章冒頭）。
+- ブロック永続化 = **MVPは全置換方式（clear + bulkAdd）**。件数増で差分 reconcile に切替（5.1）。
 
 ### 残課題（任意・将来）
 - 分析の期間プリセットの追加・任意レンジ指定 — 必要になれば。
 - 極短区間補正値（`MIN_BLOCK_MINUTES`）の調整 — 実データで合わなければ。
 - 箱ひげの「一定以上の空白で区切る」高度な補正 — 5分無視で足りなければ。
+- スマホ版 UI の追加（`ui/` を platform 別に分離）。
+- 差分 reconcile への移行（件数が増えたら）。
 </content>

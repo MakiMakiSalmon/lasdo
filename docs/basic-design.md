@@ -101,9 +101,13 @@ requirements.md 4.6 に従い、見る頻度で画面を分ける。
         └─────────────┘
 ```
 
+- **遷移の実装手段**: react-router は入れず、**Zustand の `view` 状態（'record'|'analysis'|'edit'）で出し分け**る。3画面のMVPには最軽量。URL同期が要れば後で router に移行可（詳細設計 5.3）。
+
 ---
 
 ## 5. 主要コンポーネント（Presentation）
+
+> **プラットフォーム方針（MVP）**: requirements.md 4.8 は「PC/スマホで根本的に作り分け」だが、**MVPは PC 先行**（スマホは後回し）。データ/ロジック/ストアは共通なので、後からスマホ用 Presentation を足して分離できる。
 
 実装優先順は requirements.md 4.5: **①1日タイムライン → ②曜日別棒グラフ → ③箱ひげ図**。
 
@@ -169,8 +173,8 @@ Repository.list() → State: 全ブロック保持
 src/
   domain/      純粋関数（timeBlock, aggregation, dateBoundary）+ テスト
   data/        Repository インターフェース + IndexedDB 実装
-  store/       Zustand ストア（タイマー / ブロック）   ← 新設
-  ui/          画面・コンポーネント（platform 別出し分け）  ← 新設
+  store/       Zustand ストア（block / timer / view）   ← 新設
+  ui/          画面・コンポーネント（MVPはPC版）  ← 新設
     timer/     円形タイマー(SVG)
     timeline/  1日タイムライン(SVG)
     analysis/  ECharts ラッパ
@@ -178,6 +182,7 @@ src/
 ```
 
 既存（`domain/` `data/`）はそのまま活かし、`store/` `ui/` を追加していく。
+将来スマホ用を作るときは `ui/` 配下を platform 別に分ける（store/domain/data は共通のまま）。
 
 ---
 
@@ -189,6 +194,7 @@ src/
 | 1日タイムライン・曜日別棒・箱ひげ | 他人共有・チーム機能 |
 | IndexedDB 保存 | スマホネイティブ・Supabase 同期 |
 | 日/週集計 | 種別/カテゴリ/タグ |
+| **PC版UI** | **スマホ版UI（PC先行のため後回し）** |
 
 ---
 
@@ -202,7 +208,10 @@ requirements.md 9章の残課題を消化。詳細は [detailed-design.md](detai
 - フェーズ1画面 = **記録／分析／編集の3つ**。
 - タイマー稼働中の**リロード耐性をMVPに含める**（localStorage退避）。
 - 名前の由来 = **"last do"**。
+- 画面遷移 = **Zustand の `view` 状態で出し分け**（react-router 不使用）。
+- プラットフォーム = **MVPは PC 先行**（スマホは後回し。store/domain/data は共通）。
+- ブロック永続化 = **MVPは全置換方式（clear + bulkAdd）**。件数が増えたら差分 reconcile に切替（詳細設計 5.1）。
 
-残課題（任意・将来）: 任意期間レンジ、極短区間補正値の調整、箱ひげの高度な空白区切り補正。
+残課題（任意・将来）: 任意期間レンジ、極短区間補正値の調整、箱ひげの高度な空白区切り補正、スマホ版UI、差分reconcileへの移行。
 </content>
 </invoke>
