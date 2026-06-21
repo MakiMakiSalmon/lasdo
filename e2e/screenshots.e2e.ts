@@ -1,12 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import path from 'node:path';
 import { OUT_DIR, PERIOD_LABEL, SCENARIOS, type Scenario } from './matrix';
-import {
-  generateSeedBlocks,
-  serialize,
-  VOLUME_PRESETS,
-  type SerializedBlock,
-} from './seed';
+import { buildDataset, serialize, type SerializedBlock } from './seed';
 
 /**
  * 経過時間スクショ（このブランチ専用・main 非マージ）。
@@ -86,7 +81,7 @@ test.describe('経過時間スクショ', () => {
       await page.clock.install({ time: sc.now.at });
 
       await page.goto('/');
-      await seedViaRepository(page, serialize(generateSeedBlocks(sc.now.at, VOLUME_PRESETS[sc.preset])));
+      await seedViaRepository(page, serialize(buildDataset(sc.dataset, sc.now.at)));
       await page.reload();
 
       // 初期ロード完了（「読み込み中…」が消える）まで待つ。
@@ -94,9 +89,12 @@ test.describe('経過時間スクショ', () => {
 
       await gotoScreen(page, sc);
 
-      await page
-        .locator('main.app')
-        .screenshot({ path: path.join(OUT_DIR, `${sc.name}.png`) });
+      // ページ全体を撮る。記録画面のタイムラインは main.app の枠からはみ出して
+      // クリップされうるため、要素スクショではなく fullPage にする。
+      await page.screenshot({
+        path: path.join(OUT_DIR, `${sc.name}.png`),
+        fullPage: true,
+      });
     });
   }
 });

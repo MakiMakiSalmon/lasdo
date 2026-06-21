@@ -117,6 +117,107 @@ export function generateSeedBlocks(now: Date, days: number): TimeBlock[] {
   return mergeBlocks(clipped);
 }
 
+// --- 極端ケース（活動リズムが歪な日）の専用ジェネレータ -------------------
+
+/** now の lasdo 日に対応する暦日（深夜<5:00 は前日）を返す。 */
+function lasdoCalendarDay(now: Date): Date {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (now.getHours() < 5) d.setDate(d.getDate() - 1);
+  return d;
+}
+
+/**
+ * 徹夜。昼の通常活動 + 21:00 から now まで続く連続区間。
+ * 5:00起点タイムライン(5:00〜29:00)の深夜帯へバーが伸びる様子を見る。
+ * 「夜だから睡眠」と自動分類しない設計（CLAUDE.md）の見え方確認。
+ */
+export function generateAllNighter(now: Date): TimeBlock[] {
+  const d = lasdoCalendarDay(now);
+  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const blocks: TimeBlock[] = [
+    makeBlock(d, 9 * 60, 11 * 60 + 30, 'an-am'),
+    makeBlock(d, 13 * 60, 15 * 60, 'an-pm1'),
+    makeBlock(d, 16 * 60, 18 * 60 + 30, 'an-pm2'),
+    // 21:00 → now（深夜まで連続）。
+    { id: 'an-night', start: new Date(base + 21 * 60 * MS_PER_MIN), end: new Date(now) },
+  ];
+  return mergeBlocks(blocks.filter((b) => b.end.getTime() > b.start.getTime()));
+}
+
+/**
+ * ほぼ終日アクティブ。6:00 から now まで ~110分活動/8分休憩でほぼ連続。
+ * がんばりゲージの上限付近・タイムラインがびっしり埋まる見え方を見る。
+ */
+export function generateMarathon(now: Date): TimeBlock[] {
+  const d = lasdoCalendarDay(now);
+  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const endMin = (now.getTime() - base) / MS_PER_MIN;
+  const blocks: TimeBlock[] = [];
+  let t = 6 * 60;
+  let i = 0;
+  while (t < endMin) {
+    const segEnd = Math.min(t + 110, endMin);
+    if (segEnd - t >= 10) {
+      blocks.push({
+        id: `mar${i++}`,
+        start: new Date(base + t * MS_PER_MIN),
+        end: new Date(base + segEnd * MS_PER_MIN),
+      });
+    }
+    t = segEnd + 8;
+  }
+  return mergeBlocks(blocks);
+}
+
+/**
+ * 疎データ。約7割の日は記録なし、記録日も1〜2区間だけ。
+ * 欠け曜日（データなし）・少サンプルの箱ひげ・凸凹な棒の見え方を見る。
+ */
+export function generateSparse(now: Date, days: number): TimeBlock[] {
+  const rand = mulberry32(SEED ^ 0x5a);
+  const raw: TimeBlock[] = [];
+  let uid = 0;
+  const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  for (let dd = days; dd >= 0; dd -= 1) {
+    const day = new Date(nowDay);
+    day.setDate(day.getDate() - dd);
+    if (rand() < 0.7) continue; // 7割は記録なし
+    const count = 1 + Math.floor(rand() * 2); // 1〜2 区間
+    let cursor = 9 * 60 + Math.floor(rand() * 240); // 9:00〜13:00 開始
+    for (let i = 0; i < count; i += 1) {
+      const len = 40 + Math.floor(rand() * 120);
+      raw.push(makeBlock(day, cursor, cursor + len, `sp${uid++}`));
+      cursor += len + 60 + Math.floor(rand() * 180);
+    }
+  }
+
+  const cutoff = now.getTime();
+  return mergeBlocks(
+    raw
+      .filter((b) => b.start.getTime() < cutoff)
+      .map((b) => (b.end.getTime() > cutoff ? { ...b, end: new Date(cutoff) } : b))
+      .filter((b) => b.end.getTime() - b.start.getTime() >= 10 * MS_PER_MIN),
+  );
+}
+
+/** データソースのキー。通常のデータ量プリセット + 極端ケース。 */
+export type DatasetKey = VolumePreset | 'allnighter' | 'sparse' | 'marathon';
+
+/** キーと now から実際の区間集合を構築する（spec が唯一呼ぶ入口）。 */
+export function buildDataset(key: DatasetKey, now: Date): TimeBlock[] {
+  switch (key) {
+    case 'allnighter':
+      return generateAllNighter(now);
+    case 'marathon':
+      return generateMarathon(now);
+    case 'sparse':
+      return generateSparse(now, 84); // 12週ぶんを疎に
+    default:
+      return generateSeedBlocks(now, VOLUME_PRESETS[key]);
+  }
+}
+
 /** page.evaluate へ渡すための直列化（Date → epoch ms）。 */
 export function serialize(blocks: TimeBlock[]): SerializedBlock[] {
   return blocks.map((b) => ({
