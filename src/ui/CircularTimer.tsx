@@ -20,6 +20,17 @@ const OUTER_GAP = 9;
 const OUTER_W = 5;
 const INNER_CIRC = 2 * Math.PI * INNER_R;
 
+/**
+ * 経過時間テキストのフォントサイズ（px）。桁が増えても内側リング（内縁=半径58）に
+ * 当たらないよう、文字数に応じて段階的に下げる。
+ * "M:SS"/"MM:SS"=34, "H:MM:SS"=30, "HH:MM:SS" 以上=26。
+ */
+function timeFontSize(text: string): number {
+  if (text.length <= 5) return 34;
+  if (text.length <= 7) return 30;
+  return 26;
+}
+
 export function CircularTimer() {
   const runningSince = useTimerStore((s) => s.runningSince);
   const start = useTimerStore((s) => s.start);
@@ -39,6 +50,7 @@ export function CircularTimer() {
     : 0;
   const gauge = gaugeState(elapsedMs);
   const running = runningSince !== null;
+  const timeStr = formatElapsed(elapsedMs);
 
   // 進捗アーク（上から時計回り）。
   const dashOffset = INNER_CIRC * (1 - gauge.progressInUnit);
@@ -96,8 +108,13 @@ export function CircularTimer() {
         )}
 
         {/* 中央: 経過時間とラベル */}
-        <text className={styles.time} x={C} y={C - 6}>
-          {formatElapsed(elapsedMs)}
+        <text
+          className={styles.time}
+          x={C}
+          y={C - 6}
+          style={{ fontSize: timeFontSize(timeStr) }}
+        >
+          {timeStr}
         </text>
         <text className={styles.label} x={C} y={C + 28}>
           {running ? 'タップで停止' : 'タップで開始'}
