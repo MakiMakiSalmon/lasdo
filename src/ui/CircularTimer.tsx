@@ -88,9 +88,9 @@ export function CircularTimer() {
           />
         ))}
 
-        {/* 集約表示 ×N（4単位以上） */}
+        {/* 集約表示 ×N（4単位以上）。外周リング上端より上に置き、リングと被らせない。 */}
         {gauge.collapsed && (
-          <text className={styles.count} x={C} y={34}>
+          <text className={styles.count} x={C} y={C - OUTER_BASE_R - 8}>
             ×{gauge.completedUnits}
           </text>
         )}
