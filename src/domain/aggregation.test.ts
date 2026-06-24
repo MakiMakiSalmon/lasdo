@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   activeDurationMs,
   avgDurationByWeekday,
+  dailyActiveMs,
   dailyStartEnd,
 } from './aggregation';
 import type { TimeBlock } from './timeBlock';
@@ -64,6 +65,37 @@ describe('avgDurationByWeekday', () => {
     const avg = avgDurationByWeekday([], range);
     expect(avg[0]).toBe(0);
     expect(avg[1]).toBe(0);
+  });
+
+  it('記録開始前の空白日は分母に数えない（少データで平均が薄まらない）', () => {
+    // 月曜が5日ある窓だが、記録は最後寄りの月曜1日(6/22 2h)だけ。
+    const blocks = [block('a', dt(6, 22, 9), dt(6, 22, 11))];
+    const range = { from: dt(6, 1, 5), to: dt(6, 30, 5) };
+    const avg = avgDurationByWeekday(blocks, range);
+    // 分母は最初の記録日(6/22)以降の月曜=2日(6/22, 6/29)。6/1・6/8・6/15 は数えない。
+    // → 2h / 2日 = 1h（窓全体の5日で割る 0.4h ではない）。
+    expect(avg[1]).toBe(1 * HOUR);
+  });
+});
+
+describe('dailyActiveMs', () => {
+  it('lasdo日キーごとに合算し、境界(5:00)またぎは前後日へ分ける', () => {
+    const blocks = [
+      block('a', dt(6, 21, 9), dt(6, 21, 11)), // 6/21 2h
+      block('b', dt(6, 21, 14), dt(6, 21, 15)), // 6/21 1h
+      block('c', dt(6, 22, 3), dt(6, 22, 7)), // 03-05 は 6/21、05-07 は 6/22
+    ];
+    const m = dailyActiveMs(blocks, { from: dt(6, 21, 5), to: dt(6, 23, 5) });
+    expect(m.get('2026-06-21')).toBe(5 * HOUR); // 3h + またぎ前半2h
+    expect(m.get('2026-06-22')).toBe(2 * HOUR);
+  });
+
+  it('範囲外の日はキーを持たない', () => {
+    const m = dailyActiveMs([block('a', dt(6, 21, 9), dt(6, 21, 10))], {
+      from: dt(6, 22, 5),
+      to: dt(6, 23, 5),
+    });
+    expect(m.size).toBe(0);
   });
 });
 

@@ -67,6 +67,7 @@ export function avgDurationByWeekday(
   const sum: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
   const lo = range.from.getTime();
   const hi = range.to.getTime();
+  let earliestDay = Number.POSITIVE_INFINITY;
 
   for (const b of blocks) {
     for (const seg of splitByDayBoundary(b)) {
@@ -74,17 +75,49 @@ export function avgDurationByWeekday(
       const start = Math.max(seg.start.getTime(), lo);
       const end = Math.min(seg.end.getTime(), hi);
       if (end <= start) continue;
-      const weekday = dayWindow(seg.key).start.getDay();
-      sum[weekday] += end - start;
+      const dayStart = dayWindow(seg.key).start;
+      sum[dayStart.getDay()] += end - start;
+      earliestDay = Math.min(earliestDay, dayStart.getTime());
     }
   }
 
-  const counts = countDaysByWeekday(range.from, range.to);
+  // 分母は「最初に記録した日」以降だけを数える。記録開始前の空白日まで母数に
+  // 含めると、使い始めで件数が少ないとき平均が不当に薄まるため（下限は range.from）。
+  const from =
+    earliestDay === Number.POSITIVE_INFINITY
+      ? range.to
+      : new Date(Math.max(lo, earliestDay));
+  const counts = countDaysByWeekday(from, range.to);
   const avg: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
   for (let wd = 0; wd < 7; wd += 1) {
     avg[wd] = counts[wd] > 0 ? sum[wd] / counts[wd] : 0;
   }
   return avg;
+}
+
+/**
+ * lasdo 日キーごとのアクティブ時間合計（ミリ秒）。活動カレンダー（草）の素。
+ *
+ * 各区間を lasdo 日へ割り当て（またぎは分割）、[from, to) でクリップして日ごとに合算。
+ * 記録のない日はキーを持たない（呼び出し側で 0 とみなす）。
+ */
+export function dailyActiveMs(
+  blocks: TimeBlock[],
+  range: { from: Date; to: Date },
+): Map<DayKey, number> {
+  const lo = range.from.getTime();
+  const hi = range.to.getTime();
+  const byDay = new Map<DayKey, number>();
+
+  for (const b of blocks) {
+    for (const seg of splitByDayBoundary(b)) {
+      const start = Math.max(seg.start.getTime(), lo);
+      const end = Math.min(seg.end.getTime(), hi);
+      if (end <= start) continue;
+      byDay.set(seg.key, (byDay.get(seg.key) ?? 0) + (end - start));
+    }
+  }
+  return byDay;
 }
 
 /** lasdo 日ごとの「最初の開始」「最後の終了」（5:00起点の経過分）。 */

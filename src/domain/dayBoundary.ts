@@ -40,6 +40,25 @@ export function minutesFromDayStart(key: DayKey, d: Date): number {
 export const TIMELINE_TOTAL_MINUTES = 24 * 60;
 
 /**
+ * [from, to) に起点(5:00)が含まれる lasdo 日を、起点昇順で列挙する。
+ * 活動カレンダー（草）が「記録のない日」も含めて全日をマス化するために使う。
+ */
+export function lasdoDaysInRange(range: {
+  from: Date;
+  to: Date;
+}): Array<{ key: DayKey; start: Date }> {
+  const out: Array<{ key: DayKey; start: Date }> = [];
+  let cur = dayWindow(lasdoDayKey(range.from)).start;
+  while (cur.getTime() < range.to.getTime()) {
+    if (cur.getTime() >= range.from.getTime()) {
+      out.push({ key: lasdoDayKey(cur), start: cur });
+    }
+    cur = addDays(cur, 1);
+  }
+  return out;
+}
+
+/**
  * 指定 lasdo 日に属するアクティブ帯を、5:00起点の経過分 [startMin, endMin) の
  * リストで返す（1日タイムライン描画用）。startMin 昇順。
  *
