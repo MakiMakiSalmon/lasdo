@@ -19,10 +19,15 @@ export function AnalysisScreen({ blocks, now }: AnalysisScreenProps) {
   return (
     <div className={styles.screen}>
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>活動カレンダー</h2>
-        <p className={styles.sectionNote}>
-          1マス＝1日の活動量（直近12週）。右は曜日ごとの平均/日。
-        </p>
+        <div className={styles.headerRow}>
+          <div className={styles.calTitleBlock}>
+            <h2 className={styles.sectionTitle}>活動カレンダー</h2>
+            <p className={styles.sectionNote}>
+              1マス＝1日の活動量（直近12週）。右は曜日ごとの平均/日。
+            </p>
+          </div>
+          <h2 className={`${styles.sectionTitle} ${styles.weekTitle}`}>今週の作業時間</h2>
+        </div>
         <div className={styles.calendarRow}>
           <ActivityCalendar blocks={blocks} now={now} />
           <ThisWeekChart blocks={blocks} now={now} />

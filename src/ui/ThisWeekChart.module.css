@@ -7,12 +7,6 @@
   text-align: left;
 }
 
-.caption {
-  font-size: 0.8rem;
-  color: var(--text);
-  margin: 0 0 10px;
-}
-
 /* 棒を等間隔に散らして幅いっぱいを使う。 */
 .bars {
   display: flex;
@@ -21,12 +15,19 @@
   gap: 10px;
 }
 
-/* 各列は下揃え。下から[ラベル][棒][値]の順に積み上がる（棒の上に値が乗る）。 */
 .col {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+/* 固定高の描画領域。下揃えで棒が底から伸び、その上に値が乗る。
+   高さは ActivityCalendar の草に揃える（データが無くても縦幅が潰れない）。 */
+.track {
+  display: flex;
+  flex-direction: column;
   justify-content: flex-end;
+  align-items: center;
 }
 
 .value {

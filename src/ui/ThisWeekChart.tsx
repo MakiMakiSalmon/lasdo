@@ -13,7 +13,16 @@ import styles from './ThisWeekChart.module.css';
  */
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 const MS_PER_HOUR = 3_600_000;
-const MAX_BAR_PX = 110;
+
+/**
+ * 棒の描画領域の高さ。ActivityCalendar の草の高さ（セル20px×7行 + 隙間3px×6）に
+ * 揃えることで、データの有無で縦幅が変わらず、両者の上端・下端が一致する。
+ */
+const TRACK_PX = 7 * 20 + 6 * 3; // 158
+/** 棒の上に置く値ラベルの確保高。 */
+const VALUE_PX = 14;
+/** 満杯の棒の高さ（値ラベルぶんを残してトラックいっぱい）。 */
+const MAX_BAR_PX = TRACK_PX - VALUE_PX;
 
 function round1(n: number): string {
   return `${Math.round(n * 10) / 10}h`;
@@ -52,7 +61,6 @@ export function ThisWeekChart({ blocks, now = new Date() }: ThisWeekChartProps) 
 
   return (
     <div className={styles.wrap}>
-      <p className={styles.caption}>今週の作業時間</p>
       <div className={styles.bars}>
         {days.map((d) => {
           const px = d.isFuture ? 2 : Math.max(2, Math.round((d.hours / max) * MAX_BAR_PX));
@@ -65,10 +73,12 @@ export function ThisWeekChart({ blocks, now = new Date() }: ThisWeekChartProps) 
               : styles.zero;
           return (
             <div key={d.label} className={styles.col}>
-              <span className={styles.value}>
-                {!d.isFuture && d.hours > 0 ? round1(d.hours) : ''}
-              </span>
-              <span className={`${styles.barBase} ${tone}`} style={{ height: px }} />
+              <div className={styles.track} style={{ height: TRACK_PX }}>
+                <span className={styles.value}>
+                  {!d.isFuture && d.hours > 0 ? round1(d.hours) : ''}
+                </span>
+                <span className={`${styles.barBase} ${tone}`} style={{ height: px }} />
+              </div>
               <span className={`${styles.label} ${d.isToday ? styles.todayLabel : ''}`}>
                 {d.label}
               </span>
