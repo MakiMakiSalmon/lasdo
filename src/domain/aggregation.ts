@@ -2,24 +2,13 @@ import { addDays } from 'date-fns';
 import {
   dayWindow,
   lasdoDayKey,
-  minutesFromDayStart,
   splitByDayBoundary,
+  TIMELINE_TOTAL_MINUTES,
   type DayKey,
 } from './dayBoundary';
 import type { TimeBlock } from './timeBlock';
 
-/**
- * 開始/終了判定で無視する極短区間のしきい値（分）。
- * 朝/深夜の極短区間が「最初の開始/最後の終了」をズラす穴を吸収する（requirements.md 6.4）。
- * duration 合計には影響しない。MVP 既定 = 5 分。
- */
-export const MIN_BLOCK_MINUTES = 5;
-
 const MS_PER_MIN = 60_000;
-
-function durationMin(b: TimeBlock): number {
-  return (b.end.getTime() - b.start.getTime()) / MS_PER_MIN;
-}
 
 /**
  * 期間 [from, to) に重なる区間長の合計（ミリ秒）。
@@ -96,6 +85,79 @@ export function avgDurationByWeekday(
 }
 
 /**
+ * 時間帯ヒートマップの時間枠サイズ（分）。2時間 = 12枠で 5:00〜29:00 を覆う。
+ */
+export const HEATMAP_BUCKET_MINUTES = 120;
+
+/** 時間帯ヒートマップ（曜日×時間帯の平均アクティブ分/日）。 */
+export interface WeekdayHourHeatmap {
+  /** 1枠あたりの分数。 */
+  bucketMinutes: number;
+  /** 1日を覆う枠数（= TIMELINE_TOTAL_MINUTES / bucketMinutes）。 */
+  bucketCount: number;
+  /** [曜日 0=日..6=土][枠 0..bucketCount-1（0 = 5:00枠）] = 平均アクティブ分/日。 */
+  avgMinutes: number[][];
+}
+
+/**
+ * 曜日×時間帯の「平均アクティブ分/日」を返す（時間帯ヒートマップの素）。
+ *
+ * 各区間を lasdo 日へ割り当て（またぎは分割）、さらに時間枠の境界で割って
+ * 枠ごとに分を合算する。合計を「対象期間に含まれるその曜日の日数」で割るため、
+ * 直近◯週が可変でも曜日間で公平に比較できる（avgDurationByWeekday と同じ考え方）。
+ *
+ * 分母は avgDurationByWeekday と揃え、最初に記録した日以降だけを数える
+ * （使い始めで件数が少ないとき平均が不当に薄まるのを避ける）。
+ */
+export function avgMinutesByWeekdayHour(
+  blocks: TimeBlock[],
+  range: { from: Date; to: Date },
+  bucketMinutes = HEATMAP_BUCKET_MINUTES,
+): WeekdayHourHeatmap {
+  const bucketCount = Math.round(TIMELINE_TOTAL_MINUTES / bucketMinutes);
+  const sum: number[][] = Array.from({ length: 7 }, () =>
+    new Array<number>(bucketCount).fill(0),
+  );
+  const lo = range.from.getTime();
+  const hi = range.to.getTime();
+  let earliestDay = Number.POSITIVE_INFINITY;
+
+  for (const b of blocks) {
+    for (const seg of splitByDayBoundary(b)) {
+      // 期間 [from, to) でクリップしてから枠へ割り当てる。
+      const start = Math.max(seg.start.getTime(), lo);
+      const end = Math.min(seg.end.getTime(), hi);
+      if (end <= start) continue;
+      const dayStart = dayWindow(seg.key).start;
+      const wd = dayStart.getDay();
+      earliestDay = Math.min(earliestDay, dayStart.getTime());
+
+      // セグメントを枠境界でさらに割り、重なった分を各枠へ加算する。
+      const base = dayStart.getTime();
+      const sMin = (start - base) / MS_PER_MIN;
+      const eMin = (end - base) / MS_PER_MIN;
+      for (let bi = Math.floor(sMin / bucketMinutes); bi < bucketCount; bi += 1) {
+        const bStart = bi * bucketMinutes;
+        const bEnd = bStart + bucketMinutes;
+        const overlap = Math.min(eMin, bEnd) - Math.max(sMin, bStart);
+        if (overlap > 0) sum[wd][bi] += overlap;
+        if (eMin <= bEnd) break;
+      }
+    }
+  }
+
+  const from =
+    earliestDay === Number.POSITIVE_INFINITY
+      ? range.to
+      : new Date(Math.max(lo, earliestDay));
+  const counts = countDaysByWeekday(from, range.to);
+  const avgMinutes = sum.map((row, wd) =>
+    row.map((v) => (counts[wd] > 0 ? v / counts[wd] : 0)),
+  );
+  return { bucketMinutes, bucketCount, avgMinutes };
+}
+
+/**
  * lasdo 日キーごとのアクティブ時間合計（ミリ秒）。活動カレンダー（草）の素。
  *
  * 各区間を lasdo 日へ割り当て（またぎは分割）、[from, to) でクリップして日ごとに合算。
@@ -118,45 +180,4 @@ export function dailyActiveMs(
     }
   }
   return byDay;
-}
-
-/** lasdo 日ごとの「最初の開始」「最後の終了」（5:00起点の経過分）。 */
-export interface DailyStartEnd {
-  key: DayKey;
-  /** その日の最初の区間の開始（5:00起点の分、0〜1440）。 */
-  startMin: number;
-  /** その日の最後の区間の終了（5:00起点の分、0〜1440）。 */
-  endMin: number;
-}
-
-/**
- * 各 lasdo 日の「最初の区間の開始」「最後の区間の終了」を集める（箱ひげ図の素）。
- *
- * - `minBlockMinutes` 未満の区間は開始/終了の判定から無視する（極短区間補正・6.4）。
- * - 出力は key 昇順。`startMin`/`endMin` は 5:00 起点の経過分（タイムライン軸と整合）。
- */
-export function dailyStartEnd(
-  blocks: TimeBlock[],
-  minBlockMinutes = MIN_BLOCK_MINUTES,
-): DailyStartEnd[] {
-  const byDay = new Map<DayKey, { startMin: number; endMin: number }>();
-
-  for (const b of blocks) {
-    if (durationMin(b) < minBlockMinutes) continue;
-    for (const seg of splitByDayBoundary(b)) {
-      const s = minutesFromDayStart(seg.key, seg.start);
-      const e = minutesFromDayStart(seg.key, seg.end);
-      const cur = byDay.get(seg.key);
-      if (!cur) {
-        byDay.set(seg.key, { startMin: s, endMin: e });
-      } else {
-        cur.startMin = Math.min(cur.startMin, s);
-        cur.endMin = Math.max(cur.endMin, e);
-      }
-    }
-  }
-
-  return [...byDay.entries()]
-    .map(([key, v]) => ({ key, ...v }))
-    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }

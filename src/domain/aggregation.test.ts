@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   activeDurationMs,
   avgDurationByWeekday,
+  avgMinutesByWeekdayHour,
   dailyActiveMs,
-  dailyStartEnd,
 } from './aggregation';
 import type { TimeBlock } from './timeBlock';
 
@@ -78,6 +78,45 @@ describe('avgDurationByWeekday', () => {
   });
 });
 
+describe('avgMinutesByWeekdayHour', () => {
+  // 既定枠 = 2時間。枠0 = 5:00〜7:00、枠1 = 7:00〜9:00、枠2 = 9:00〜11:00。
+  it('区間を曜日×時間枠へ割り当てる（分単位）', () => {
+    const blocks = [block('a', dt(6, 22, 9), dt(6, 22, 11))]; // 月 9:00〜11:00
+    const range = { from: dt(6, 21, 5), to: dt(6, 23, 5) }; // 日・月
+    const { avgMinutes, bucketCount } = avgMinutesByWeekdayHour(blocks, range);
+    expect(bucketCount).toBe(12);
+    expect(avgMinutes[1][2]).toBe(120); // 月・枠2(9:00〜11:00)
+    expect(avgMinutes[1][1]).toBe(0); // 隣の枠は 0
+  });
+
+  it('枠の境界をまたぐ区間を分割して各枠へ加算する', () => {
+    const blocks = [block('a', dt(6, 22, 8), dt(6, 22, 10))]; // 月 8:00〜10:00
+    const range = { from: dt(6, 21, 5), to: dt(6, 23, 5) };
+    const { avgMinutes } = avgMinutesByWeekdayHour(blocks, range);
+    expect(avgMinutes[1][1]).toBe(60); // 7:00〜9:00 のうち 8:00〜9:00
+    expect(avgMinutes[1][2]).toBe(60); // 9:00〜11:00 のうち 9:00〜10:00
+  });
+
+  it('lasdo日境界(5:00)をまたぐ区間は前後の曜日・枠へ分かれる', () => {
+    // 6/22 03:00〜07:00。境界5:00で割れ、前2h は日曜(6/21)の最終枠、後2h は月曜(6/22)の先頭枠。
+    const blocks = [block('a', dt(6, 22, 3), dt(6, 22, 7))];
+    const range = { from: dt(6, 21, 5), to: dt(6, 23, 5) };
+    const { avgMinutes } = avgMinutesByWeekdayHour(blocks, range);
+    expect(avgMinutes[0][11]).toBe(120); // 日曜 枠11(3:00〜5:00 = 27:00〜29:00)
+    expect(avgMinutes[1][0]).toBe(120); // 月曜 枠0(5:00〜7:00)
+  });
+
+  it('同じ枠の複数日を日数で割って平均/日になる', () => {
+    const blocks = [
+      block('a', dt(6, 22, 9), dt(6, 22, 10)), // 月 60分
+      block('b', dt(6, 29, 9), dt(6, 29, 11)), // 月 120分
+    ];
+    const range = { from: dt(6, 21, 5), to: dt(6, 30, 5) }; // 月曜が2日
+    const { avgMinutes } = avgMinutesByWeekdayHour(blocks, range);
+    expect(avgMinutes[1][2]).toBe(90); // (60 + 120) / 2
+  });
+});
+
 describe('dailyActiveMs', () => {
   it('lasdo日キーごとに合算し、境界(5:00)またぎは前後日へ分ける', () => {
     const blocks = [
@@ -96,48 +135,5 @@ describe('dailyActiveMs', () => {
       to: dt(6, 23, 5),
     });
     expect(m.size).toBe(0);
-  });
-});
-
-describe('dailyStartEnd', () => {
-  it('単一区間の日は開始=終了の分換算（5:00起点）', () => {
-    const rows = dailyStartEnd([block('a', dt(6, 21, 9), dt(6, 21, 12))]);
-    expect(rows).toEqual([
-      { key: '2026-06-21', startMin: 4 * 60, endMin: 7 * 60 },
-    ]);
-  });
-
-  it('複数区間の日は最初の開始と最後の終了', () => {
-    const rows = dailyStartEnd([
-      block('a', dt(6, 21, 9), dt(6, 21, 10)),
-      block('b', dt(6, 21, 20), dt(6, 21, 22)),
-    ]);
-    expect(rows).toEqual([
-      { key: '2026-06-21', startMin: 4 * 60, endMin: 17 * 60 },
-    ]);
-  });
-
-  it('minBlockMinutes 未満の極短区間は開始/終了判定で無視する', () => {
-    const rows = dailyStartEnd(
-      [
-        block('short', dt(6, 21, 6), dt(6, 21, 6, 3)), // 3分（無視）
-        block('main', dt(6, 21, 9), dt(6, 21, 12)),
-      ],
-      5,
-    );
-    // 6:00 の極短区間が無視され、開始は 9:00（=240分）になる
-    expect(rows).toEqual([
-      { key: '2026-06-21', startMin: 4 * 60, endMin: 7 * 60 },
-    ]);
-  });
-
-  it('lasdo日境界(5:00)をまたぐ区間は前後日に別々の開始/終了を作る', () => {
-    // 6/22 03:00 → 07:00。境界5:00で前後日に割れる。
-    const rows = dailyStartEnd([block('a', dt(6, 22, 3), dt(6, 22, 7))]);
-    expect(rows.map((r) => r.key)).toEqual(['2026-06-21', '2026-06-22']);
-    // 6/21: 03:00(=22h後=1320分) 〜 境界5:00(=24h=1440分)
-    expect(rows[0]).toEqual({ key: '2026-06-21', startMin: 22 * 60, endMin: 24 * 60 });
-    // 6/22: 5:00(=0分) 〜 07:00(=2h=120分)
-    expect(rows[1]).toEqual({ key: '2026-06-22', startMin: 0, endMin: 2 * 60 });
   });
 });

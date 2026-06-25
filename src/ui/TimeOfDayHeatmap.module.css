@@ -1,0 +1,102 @@
+.wrap {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  text-align: left;
+}
+
+/* 左=曜日ラベル、右=その曜日の時間帯バー（5:00〜29:00）。 */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 4px;
+}
+.day {
+  flex: none;
+  width: 1.4rem;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text);
+  text-align: right;
+}
+
+/* 時間枠を隙間なく並べ、曜日ごとに1本の連続した棒として見せる
+   （枠を離すとグリッドに見え、曜日のつながりが追いにくいため）。
+   外周だけ角丸にし、内側の枠境界はフラットに連結する。 */
+.bar {
+  flex: 1;
+  display: flex;
+  gap: 0;
+  min-width: 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cell {
+  flex: 1;
+  height: 22px;
+  cursor: default;
+}
+/* 2時間枠の区切り線。隙間でなく内側1pxのハイライン（背景色）で、
+   棒は1本のまま・全セル等幅を保ちつつ時間目盛りを示す。先頭枠には引かない。 */
+.divider {
+  box-shadow: inset 1px 0 0 0 var(--bg);
+}
+
+.lv0 {
+  background: var(--track);
+}
+.lv1 {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.lv2 {
+  background: color-mix(in srgb, var(--accent) 52%, transparent);
+}
+.lv3 {
+  background: color-mix(in srgb, var(--accent) 76%, transparent);
+}
+.lv4 {
+  background: var(--accent);
+}
+
+/* 時間軸ラベル。枠境界に合わせて等間隔に置く（バー左端に揃える）。 */
+.axis {
+  display: flex;
+  justify-content: space-between;
+  margin-left: calc(1.4rem + 0.5rem);
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--text);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text);
+}
+.swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 2;
+  max-width: min(260px, calc(100% - 1rem));
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-h);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+}

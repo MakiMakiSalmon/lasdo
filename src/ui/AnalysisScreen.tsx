@@ -1,13 +1,15 @@
 import type { TimeBlock } from '../domain/timeBlock';
 import { ActivityCalendar } from './ActivityCalendar';
 import { ThisWeekChart } from './ThisWeekChart';
+import { TimeOfDayHeatmap } from './TimeOfDayHeatmap';
 import styles from './AnalysisScreen.module.css';
 
 /**
  * 分析画面（たまに見る・detailed-design 6.3）。
  *
- * いまは活動カレンダー（草＋欄外の曜日平均）の1要素のみ。期間プリセットは廃止し、
- * 集計は固定窓（直近12週）。開始/終了の箱ひげは残すか再検討中のため、ひとまず外している。
+ * 上段＝活動カレンダー（草＋欄外の曜日平均）＋今週の作業時間。
+ * 下段＝時間帯ヒートマップ（曜日×時間帯のアクティブ量＝リズムの型）。
+ * 期間プリセットは廃止し、集計は固定窓（直近12週）。
  */
 export interface AnalysisScreenProps {
   blocks: TimeBlock[];
@@ -32,6 +34,14 @@ export function AnalysisScreen({ blocks, now }: AnalysisScreenProps) {
           <ActivityCalendar blocks={blocks} now={now} />
           <ThisWeekChart blocks={blocks} now={now} />
         </div>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>時間帯ヒートマップ</h2>
+        <p className={styles.sectionNote}>
+          いつ動く人か（曜日×時間帯）。色＝平均アクティブ分/日（直近12週・5:00起点）。
+        </p>
+        <TimeOfDayHeatmap blocks={blocks} now={now} />
       </section>
     </div>
   );
