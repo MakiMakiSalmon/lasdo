@@ -85,7 +85,7 @@ export function ActivityCalendar({ blocks, now = new Date() }: ActivityCalendarP
     return { days: list, lead, avg: avgHours, maxAvg };
   }, [blocks, nowKey]);
 
-  const showTip = (event: PointerEvent<HTMLSpanElement>, text: string) => {
+  const showTip = (event: PointerEvent<HTMLElement>, text: string) => {
     const wrap = wrapRef.current;
     if (!wrap) return;
     const rect = wrap.getBoundingClientRect();
@@ -122,15 +122,24 @@ export function ActivityCalendar({ blocks, now = new Date() }: ActivityCalendarP
         </div>
 
         <div className={styles.marginal}>
-          {WEEKDAY_LABELS.map((w, wd) => (
-            <div key={w} className={styles.mrow}>
-              <span
-                className={styles.mbar}
-                style={{ width: `${Math.round((avg[wd] / maxAvg) * 100)}%` }}
-              />
-              <span className={styles.mval}>{toHm(avg[wd])}</span>
-            </div>
-          ))}
+          {WEEKDAY_LABELS.map((w, wd) => {
+            const tip = `${w}曜 ・ 平均 ${avg[wd] > 0 ? toHm(avg[wd]) : '記録なし'}/日`;
+            return (
+              <div
+                key={w}
+                className={styles.mrow}
+                aria-label={tip}
+                onPointerEnter={(event) => showTip(event, tip)}
+                onPointerMove={(event) => showTip(event, tip)}
+                onPointerLeave={() => setTooltip(null)}
+              >
+                <span
+                  className={styles.mbar}
+                  style={{ width: `${Math.round((avg[wd] / maxAvg) * 100)}%` }}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
 

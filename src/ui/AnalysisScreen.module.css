@@ -9,29 +9,22 @@
   width: 100%;
   text-align: left;
 }
-/* 見出し行。左=活動カレンダーの題＋説明、右=今週の作業時間の題（チャート位置に合わせ右寄せ）。 */
-.headerRow {
-  display: flex;
-  align-items: flex-start;
-  gap: 2.5rem;
-}
-/* 左ブロックを伸縮させ、今週の題が右の今週チャート直上に揃うようにする。 */
-.calTitleBlock {
-  flex: 1;
-  min-width: 0;
-}
-.weekTitle {
-  flex: none;
-  width: 500px;
-  max-width: 50%;
-}
 
-/* 左=活動カレンダー、右=今週の作業時間。空きが足りなければ折り返す。 */
-.calendarRow {
+/* 左=活動カレンダー、右=今週の作業時間。各ブロックは見出し＋チャートを一体に持つので、
+   幅が足りず折り返しても題がチャートに付いてくる（崩れない）。 */
+.topRow {
   display: flex;
   align-items: flex-start;
   gap: 2.5rem;
   flex-wrap: wrap;
+}
+.calBlock {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.weekBlock {
+  flex: 1 1 320px;
+  min-width: 260px;
 }
 .sectionTitle {
   font-size: 0.95rem;

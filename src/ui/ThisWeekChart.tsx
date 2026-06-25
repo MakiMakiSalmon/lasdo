@@ -1,5 +1,5 @@
 import { addDays } from 'date-fns';
-import { useMemo } from 'react';
+import { type PointerEvent, useMemo, useRef, useState } from 'react';
 import { dailyActiveMs } from '../domain/aggregation';
 import { dayWindow, lasdoDayKey } from '../domain/dayBoundary';
 import type { TimeBlock } from '../domain/timeBlock';
@@ -10,6 +10,7 @@ import styles from './ThisWeekChart.module.css';
  *
  * 今週（日曜起点の lasdo 週）の各日のアクティブ時間を縦棒で示す。今日を強調し、
  * まだ来ていない曜日は空（未来）として薄く置く。長期分析と記録画面の橋渡し。
+ * 値は常時表示せず、棒にカーソルを合わせると吹き出しで出す（活動カレンダーと統一）。
  */
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 const MS_PER_HOUR = 3_600_000;
@@ -19,13 +20,23 @@ const MS_PER_HOUR = 3_600_000;
  * 揃えることで、データの有無で縦幅が変わらず、両者の上端・下端が一致する。
  */
 const TRACK_PX = 7 * 20 + 6 * 3; // 158
-/** 棒の上に置く値ラベルの確保高。 */
-const VALUE_PX = 14;
-/** 満杯の棒の高さ（値ラベルぶんを残してトラックいっぱい）。 */
-const MAX_BAR_PX = TRACK_PX - VALUE_PX;
 
-function round1(n: number): string {
-  return `${Math.round(n * 10) / 10}h`;
+function toHm(hours: number): string {
+  const totalMin = Math.round(hours * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}分`;
+  return m === 0 ? `${h}時間` : `${h}時間${m}分`;
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(Math.max(n, min), max);
+}
+
+interface Tooltip {
+  left: number;
+  top: number;
+  text: string;
 }
 
 export interface ThisWeekChartProps {
@@ -36,6 +47,8 @@ export interface ThisWeekChartProps {
 
 export function ThisWeekChart({ blocks, now = new Date() }: ThisWeekChartProps) {
   const nowKey = now.getTime();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [tooltip, setTooltip] = useState<Tooltip | null>(null);
 
   const { days, max } = useMemo(() => {
     const base = new Date(nowKey);
@@ -59,11 +72,22 @@ export function ThisWeekChart({ blocks, now = new Date() }: ThisWeekChartProps) 
     return { days: list, max };
   }, [blocks, nowKey]);
 
+  const showTip = (event: PointerEvent<HTMLDivElement>, text: string) => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    setTooltip({
+      left: clamp(event.clientX - rect.left, 24, rect.width - 24),
+      top: event.clientY - rect.top - 8,
+      text,
+    });
+  };
+
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} ref={wrapRef}>
       <div className={styles.bars}>
         {days.map((d) => {
-          const px = d.isFuture ? 2 : Math.max(2, Math.round((d.hours / max) * MAX_BAR_PX));
+          const px = d.isFuture ? 2 : Math.max(2, Math.round((d.hours / max) * TRACK_PX));
           const tone = d.isFuture
             ? styles.future
             : d.hours > 0
@@ -71,12 +95,21 @@ export function ThisWeekChart({ blocks, now = new Date() }: ThisWeekChartProps) 
                 ? styles.today
                 : styles.bar
               : styles.zero;
+          const tip = d.isFuture
+            ? `${d.label}曜 ・ これから`
+            : `${d.label}曜${d.isToday ? '（今日）' : ''} ・ ${
+                d.hours > 0 ? toHm(d.hours) : '記録なし'
+              }`;
           return (
-            <div key={d.label} className={styles.col}>
+            <div
+              key={d.label}
+              className={styles.col}
+              aria-label={tip}
+              onPointerEnter={(event) => showTip(event, tip)}
+              onPointerMove={(event) => showTip(event, tip)}
+              onPointerLeave={() => setTooltip(null)}
+            >
               <div className={styles.track} style={{ height: TRACK_PX }}>
-                <span className={styles.value}>
-                  {!d.isFuture && d.hours > 0 ? round1(d.hours) : ''}
-                </span>
                 <span className={`${styles.barBase} ${tone}`} style={{ height: px }} />
               </div>
               <span className={`${styles.label} ${d.isToday ? styles.todayLabel : ''}`}>
@@ -86,6 +119,16 @@ export function ThisWeekChart({ blocks, now = new Date() }: ThisWeekChartProps) 
           );
         })}
       </div>
+
+      {tooltip && (
+        <div
+          className={styles.tooltip}
+          style={{ left: tooltip.left, top: tooltip.top }}
+          role="tooltip"
+        >
+          {tooltip.text}
+        </div>
+      )}
     </div>
   );
 }

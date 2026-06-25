@@ -21,18 +21,20 @@ export function AnalysisScreen({ blocks, now }: AnalysisScreenProps) {
   return (
     <div className={styles.screen}>
       <section className={styles.section}>
-        <div className={styles.headerRow}>
-          <div className={styles.calTitleBlock}>
+        <div className={styles.topRow}>
+          {/* 見出しを各チャートに同梱し、折り返しても題が付いてくるようにする。 */}
+          <div className={styles.calBlock}>
             <h2 className={styles.sectionTitle}>活動カレンダー</h2>
             <p className={styles.sectionNote}>
               1マス＝1日の活動量（直近12週）。右は曜日ごとの平均/日。
             </p>
+            <ActivityCalendar blocks={blocks} now={now} />
           </div>
-          <h2 className={`${styles.sectionTitle} ${styles.weekTitle}`}>今週の作業時間</h2>
-        </div>
-        <div className={styles.calendarRow}>
-          <ActivityCalendar blocks={blocks} now={now} />
-          <ThisWeekChart blocks={blocks} now={now} />
+          <div className={styles.weekBlock}>
+            <h2 className={styles.sectionTitle}>今週の作業時間</h2>
+            <p className={styles.sectionNote}>今週（日曜起点）の日別アクティブ時間。</p>
+            <ThisWeekChart blocks={blocks} now={now} />
+          </div>
         </div>
       </section>
 

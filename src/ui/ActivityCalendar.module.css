@@ -96,20 +96,17 @@
 .mrow {
   display: flex;
   align-items: center;
-  gap: 6px;
   height: 20px;
+  cursor: default;
 }
+/* 棒は単独で行幅の % を取る（値ラベルと縮み合わないので長さが正直になる）。
+   値は常時表示せず、行にカーソルを合わせると吹き出しで出す。 */
 .mbar {
   display: block;
   height: 12px;
   border-radius: 3px;
   background: var(--accent);
-  min-width: 2px;
-}
-.mval {
-  font-size: 11px;
-  color: var(--text);
-  white-space: nowrap;
+  min-width: 0;
 }
 
 .legend {
