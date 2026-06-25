@@ -85,9 +85,9 @@ export function avgDurationByWeekday(
 }
 
 /**
- * 時間帯ヒートマップの時間枠サイズ（分）。2時間 = 12枠で 5:00〜29:00 を覆う。
+ * 時間帯ヒートマップの時間枠サイズ（分）。1時間 = 24枠で 5:00〜29:00 を覆う。
  */
-export const HEATMAP_BUCKET_MINUTES = 120;
+export const HEATMAP_BUCKET_MINUTES = 60;
 
 /** 時間帯ヒートマップ（曜日×時間帯の平均アクティブ分/日）。 */
 export interface WeekdayHourHeatmap {

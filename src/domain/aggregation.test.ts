@@ -79,22 +79,23 @@ describe('avgDurationByWeekday', () => {
 });
 
 describe('avgMinutesByWeekdayHour', () => {
-  // 既定枠 = 2時間。枠0 = 5:00〜7:00、枠1 = 7:00〜9:00、枠2 = 9:00〜11:00。
+  // 既定枠 = 1時間。枠0 = 5:00〜6:00、枠4 = 9:00〜10:00、枠5 = 10:00〜11:00。
   it('区間を曜日×時間枠へ割り当てる（分単位）', () => {
     const blocks = [block('a', dt(6, 22, 9), dt(6, 22, 11))]; // 月 9:00〜11:00
     const range = { from: dt(6, 21, 5), to: dt(6, 23, 5) }; // 日・月
     const { avgMinutes, bucketCount } = avgMinutesByWeekdayHour(blocks, range);
-    expect(bucketCount).toBe(12);
-    expect(avgMinutes[1][2]).toBe(120); // 月・枠2(9:00〜11:00)
-    expect(avgMinutes[1][1]).toBe(0); // 隣の枠は 0
+    expect(bucketCount).toBe(24);
+    expect(avgMinutes[1][4]).toBe(60); // 月・枠4(9:00〜10:00)
+    expect(avgMinutes[1][5]).toBe(60); // 月・枠5(10:00〜11:00)
+    expect(avgMinutes[1][3]).toBe(0); // 隣の枠は 0
   });
 
   it('枠の境界をまたぐ区間を分割して各枠へ加算する', () => {
-    const blocks = [block('a', dt(6, 22, 8), dt(6, 22, 10))]; // 月 8:00〜10:00
+    const blocks = [block('a', dt(6, 22, 8, 30), dt(6, 22, 9, 30))]; // 月 8:30〜9:30
     const range = { from: dt(6, 21, 5), to: dt(6, 23, 5) };
     const { avgMinutes } = avgMinutesByWeekdayHour(blocks, range);
-    expect(avgMinutes[1][1]).toBe(60); // 7:00〜9:00 のうち 8:00〜9:00
-    expect(avgMinutes[1][2]).toBe(60); // 9:00〜11:00 のうち 9:00〜10:00
+    expect(avgMinutes[1][3]).toBe(30); // 8:00〜9:00 のうち 8:30〜9:00
+    expect(avgMinutes[1][4]).toBe(30); // 9:00〜10:00 のうち 9:00〜9:30
   });
 
   it('lasdo日境界(5:00)をまたぐ区間は前後の曜日・枠へ分かれる', () => {
@@ -102,18 +103,20 @@ describe('avgMinutesByWeekdayHour', () => {
     const blocks = [block('a', dt(6, 22, 3), dt(6, 22, 7))];
     const range = { from: dt(6, 21, 5), to: dt(6, 23, 5) };
     const { avgMinutes } = avgMinutesByWeekdayHour(blocks, range);
-    expect(avgMinutes[0][11]).toBe(120); // 日曜 枠11(3:00〜5:00 = 27:00〜29:00)
-    expect(avgMinutes[1][0]).toBe(120); // 月曜 枠0(5:00〜7:00)
+    expect(avgMinutes[0][22]).toBe(60); // 日曜 枠22(3:00〜4:00 = 27:00〜28:00)
+    expect(avgMinutes[0][23]).toBe(60); // 日曜 枠23(4:00〜5:00 = 28:00〜29:00)
+    expect(avgMinutes[1][0]).toBe(60); // 月曜 枠0(5:00〜6:00)
+    expect(avgMinutes[1][1]).toBe(60); // 月曜 枠1(6:00〜7:00)
   });
 
   it('同じ枠の複数日を日数で割って平均/日になる', () => {
     const blocks = [
-      block('a', dt(6, 22, 9), dt(6, 22, 10)), // 月 60分
-      block('b', dt(6, 29, 9), dt(6, 29, 11)), // 月 120分
+      block('a', dt(6, 22, 9), dt(6, 22, 9, 30)), // 月 30分
+      block('b', dt(6, 29, 9), dt(6, 29, 10)), // 月 60分
     ];
     const range = { from: dt(6, 21, 5), to: dt(6, 30, 5) }; // 月曜が2日
     const { avgMinutes } = avgMinutesByWeekdayHour(blocks, range);
-    expect(avgMinutes[1][2]).toBe(90); // (60 + 120) / 2
+    expect(avgMinutes[1][4]).toBe(45); // (30 + 60) / 2
   });
 });
 

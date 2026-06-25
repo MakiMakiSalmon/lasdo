@@ -15,12 +15,17 @@ import styles from './TimeOfDayHeatmap.module.css';
  */
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
-/** 平均分/枠 → 濃淡レベル（2時間枠 = 最大120分を想定）。草と同じ5段階。 */
-function levelClass(min: number): string {
+/**
+ * 平均分/枠 → 濃淡レベル（草と同じ5段階）。
+ * 枠の最大分（= bucketMinutes）に対する割合で判定するので、枠サイズ（1時間/2時間）を
+ * 変えても色の出方が一定になる。
+ */
+function levelClass(min: number, bucketMinutes: number): string {
   if (min <= 0) return styles.lv0;
-  if (min < 15) return styles.lv1;
-  if (min < 35) return styles.lv2;
-  if (min < 60) return styles.lv3;
+  const ratio = min / bucketMinutes;
+  if (ratio < 0.125) return styles.lv1;
+  if (ratio < 0.3) return styles.lv2;
+  if (ratio < 0.5) return styles.lv3;
   return styles.lv4;
 }
 
@@ -53,12 +58,13 @@ export function TimeOfDayHeatmap({ blocks, now = new Date() }: TimeOfDayHeatmapP
   const wrapRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
 
-  const { avgMinutes, bucketCount, bucketHours } = useMemo(() => {
+  const { avgMinutes, bucketCount, bucketHours, bucketMinutes } = useMemo(() => {
     const heatmap = avgMinutesByWeekdayHour(blocks, recentRange(new Date(nowKey)));
     return {
       avgMinutes: heatmap.avgMinutes,
       bucketCount: heatmap.bucketCount,
       bucketHours: heatmap.bucketMinutes / 60,
+      bucketMinutes: heatmap.bucketMinutes,
     };
   }, [blocks, nowKey]);
 
@@ -95,7 +101,7 @@ export function TimeOfDayHeatmap({ blocks, now = new Date() }: TimeOfDayHeatmapP
                 return (
                   <span
                     key={bi}
-                    className={`${styles.cell} ${levelClass(min)} ${
+                    className={`${styles.cell} ${levelClass(min, bucketMinutes)} ${
                       bi > 0 ? styles.divider : ''
                     }`}
                     aria-label={tip}
@@ -110,7 +116,9 @@ export function TimeOfDayHeatmap({ blocks, now = new Date() }: TimeOfDayHeatmapP
         ))}
         <div className={styles.axis} aria-hidden="true">
           {boundaries.map((b) => (
-            <span key={b}>{clock(b)}</span>
+            // 1時間枠だと境界が密になるので、ラベルは2時間ごと（偶数境界）だけ表示する。
+            // 空のスパンは space-between の位置取りのため残す。
+            <span key={b}>{b % 2 === 0 ? clock(b) : ''}</span>
           ))}
         </div>
       </div>
