@@ -152,25 +152,31 @@ function dailyActiveMs(
 
 ```ts
 interface TimeBlockRepository {
-  list(): Promise<TimeBlock[]>;        // start 昇順
-  add(block: NewTimeBlock): Promise<TimeBlock>;  // 採番して返す
+  list(): Promise<TimeBlock[]>;        // start 昇順（tombstone 除外）
+  add(block: TimeBlock): Promise<void>;  // id はクライアント採番（安定）
   update(block: TimeBlock): Promise<void>;        // id 一致で更新
-  delete(id: string): Promise<void>;
+  delete(id: string): Promise<void>;              // フェーズ2: ソフト削除
 }
 ```
 
 - **素の CRUD に徹する**。マージ等のドメイン規則は持たない。
+- フェーズ2で `replaceAll` を廃止し、差分反映（reconcile）へ移行（§5.1）。id は
+  ドメイン/ストアが採番して追加〜同期まで安定させる（オフライン作成行の前提）。
 
 ### 4.2 IndexedDB 実装（`indexedDbTimeBlockRepository.ts`・実装済み）
 
 - `toRow`/`toBlock` で `Date ↔ epoch ms` 変換。
-- `add`: `crypto.randomUUID()` で採番。
-- `list`: `orderBy('start')`。
-- 実体は `src/data/repository.ts` の `timeBlockRepository` シングルトン。**差し替えはここ1行**。
+- `list`: `orderBy('start')`（フェーズ2 以降は `deleted=0` の tombstone 除外）。
+- 実体は `src/data/repository.ts` の `timeBlockRepository` シングルトン。
+- フェーズ2 ②: 行に同期メタ（`updatedAt`/`deleted`/`dirty`）を持ち、`delete` は
+  ソフト削除。メタは `toBlock` で落とすためドメイン型には出さない（Dexie v2）。
 
-### 4.3 将来の Supabase 実装
+### 4.3 Supabase 同期（フェーズ2 ② 実装済み）
 
-- 同インターフェースを実装する別クラスを作り、`repository.ts` の代入を差し替えるだけ。UI/集計は無変更。
+- オフライン先行のため Repository は常にローカル IndexedDB のまま。Supabase は
+  **独立した SyncEngine**（`src/sync/`）が IndexedDB ↔ サーバを背景同期する
+  （`RemoteSyncSource`/`DexieLocalSync`、LWW・tombstone）。`user_id` は RLS +
+  `default auth.uid()` で隠蔽し、境界の型に出さない。詳細は `docs/supabase-setup.md`。
 
 ---
 
@@ -233,7 +239,7 @@ async function reconcile(
 - 注意点:
   - **新規追加の id 採番**: 新ブロックは `mergeBlocks` に入れる前に一度 `repo.add` で採番してから集合に混ぜる、もしくは上記のように「prev に無い区間は add」で吸収する。どちらか一方の方針に統一する（二重採番を避ける）。実装時は前者（先に add → list 再取得 → set）のほうが単純で安全。
   - **トランザクション境界**: Dexie の `db.transaction('rw', ...)` で (1)(2) を包むと中断時の不整合を防げる。
-  - MVPの簡易策として「`reconcile` を使わず、変更のたび全消し→全追加（clear + bulkAdd）」も選べる。区間数が小さいMVPでは十分実用的で、最も間違いが少ない。**MVPはこの全置換方式を既定**とし、件数が増えたら `reconcile` に切り替える。
+  - 経緯: MVP は簡易策として全置換（clear + bulkAdd）を既定にしていたが、**フェーズ2で `reconcile`（`src/data/reconcile.ts`）へ移行済み**。書き込み増幅 O(N²) を解消し、別タブ/端末の無関係な区間を巻き戻さない（lost update 緩和）。同期（②）の差分伝播の土台でもある。
 
 ### 5.2 タイマーストア
 
@@ -339,12 +345,18 @@ requirements.md 9章と対応。
 - 名前の由来 = **"last do"**（過去にやったこと＝実績の逆引き）。
 - 画面遷移 = **Zustand の `view` 状態で出し分け**（react-router 不使用／5.3）。
 - プラットフォーム = **MVPは PC 先行**（スマホは後回し。store/domain/data は共通／6章冒頭）。
-- ブロック永続化 = **MVPは全置換方式（clear + bulkAdd）**。件数増で差分 reconcile に切替（5.1）。
+
+### 確定（2026-06-30・フェーズ2）
+- ブロック永続化 = **差分反映（reconcile）**へ移行（全置換を廃止／5.1）。
+- **日境界を壁時計基準に統一**し DST 無限ループを根絶（`splitByDayBoundary`／2.3）。
+- **認証 = Supabase Auth + Google OAuth**。`user_id` は RLS + `default auth.uid()` で隠蔽（4.3）。
+- **同期 = オフライン先行**（IndexedDB 正本 + 背景双方向同期・LWW・tombstone／4.3）。
+  重なり除去はクライアント権威（`mergeBlocks`）、サーバは `CHECK(end_ms>start_ms)` のみ。
 
 ### 残課題（任意・将来）
 - 箱ひげ図（開始/終了時刻の分布）の実装 — 保留中。作るなら極短区間補正（`MIN_BLOCK_MINUTES` 既定5分・開始/終了判定のみ／duration不影響）と「一定以上の空白で区切る」補正もそこで詰める。
 - 分析の期間プリセット復活・任意レンジ指定 — 必要になれば（現状は固定窓 直近12週）。
-- `splitByDayBoundary` の DST 根本対応 — `winEnd` を実時間ベースで求める（現状は非前進で打ち切る安全弁のみ。JST 専用なら不要）。
 - スマホ版 UI の追加（`ui/` を platform 別に分離）。
-- 差分 reconcile への移行（件数が増えたら）。
+- 同期の Realtime ライブ更新（現状は push-on-change + pull-on-focus/interval。`0002` の publication で有効化可）。
+- 同期 tombstone の GC（現状は保持。件数が増えたら同期確認後に物理削除）。
 </content>
