@@ -1,5 +1,6 @@
 import type { TimeBlock } from '../domain/timeBlock';
 import { CircularTimer } from './CircularTimer';
+import { TimerWarningBanner } from './TimerWarningBanner';
 import { TodayTimeline } from './TodayTimeline';
 import styles from './RecordScreen.module.css';
 
@@ -15,6 +16,7 @@ export interface RecordScreenProps {
 export function RecordScreen({ blocks }: RecordScreenProps) {
   return (
     <div className={styles.screen}>
+      <TimerWarningBanner />
       <div className={styles.timer}>
         <CircularTimer />
       </div>

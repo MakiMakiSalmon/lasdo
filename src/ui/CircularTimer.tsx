@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import { formatElapsed, gaugeState } from '../domain/timerGauge';
 import { useTimerStore } from '../store/timerStore';
+import { useElapsedMs } from './useElapsedMs';
 import styles from './CircularTimer.module.css';
 
 /**
@@ -36,18 +36,8 @@ export function CircularTimer() {
   const start = useTimerStore((s) => s.start);
   const stop = useTimerStore((s) => s.stop);
 
-  // 稼働中は1秒ごとに「現在時刻」を更新して経過を進める。
-  // 時刻は state に持ち、レンダー中に Date.now() を読まない（純粋性）。
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!runningSince) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [runningSince]);
-
-  const elapsedMs = runningSince
-    ? Math.max(0, now - runningSince.getTime())
-    : 0;
+  // 稼働中は1秒ごとに経過を進める（共有フックでバナーと同じ計測を使う）。
+  const elapsedMs = useElapsedMs(1000);
   const gauge = gaugeState(elapsedMs);
   const running = runningSince !== null;
   const timeStr = formatElapsed(elapsedMs);
