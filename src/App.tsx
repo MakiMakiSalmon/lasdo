@@ -3,6 +3,7 @@ import './App.css';
 import { useBlockStore } from './store/blockStore';
 import { useViewStore } from './store/viewStore';
 import { AnalysisScreen } from './ui/AnalysisScreen';
+import { AuthControl } from './ui/AuthControl';
 import { EditScreen } from './ui/EditScreen';
 import { Nav } from './ui/Nav';
 import { RecordScreen } from './ui/RecordScreen';
@@ -24,6 +25,7 @@ function App() {
   return (
     <main className="app">
       <h1>lasdo</h1>
+      <AuthControl />
       <Nav />
       {!loaded ? (
         <p className="status">読み込み中…</p>
