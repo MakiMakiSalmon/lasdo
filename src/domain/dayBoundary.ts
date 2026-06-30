@@ -88,13 +88,24 @@ export function daySegments(
  * - 深夜またぎ（例 23:00〜翌2:00）は前後2日の窓に分かれる。データは1件のまま。
  * - 各セグメントは半開区間 [start, end)。ちょうど境界(5:00)で終わる区間は次日に
  *   ゼロ幅セグメントを作らない。
+ *
+ * NOTE(DST): `lasdoDayKey` は実時間(subHours)、`dayWindow` は壁時計(new Date+addDays)
+ *   で時刻を作るため、DST のある TZ では両者がズレる。spring-forward 当日（1日=23h）に
+ *   5:00 境界をまたぐ区間があると winEnd <= segStart となり segStart が前進せず無限ループ
+ *   する（タブフリーズ/OOM）。JST 専用の現状では発生しないが、将来 DST 圏ユーザーを
+ *   足す場合の根本対応は「winEnd を実時間ベースで求める」こと。下の安全弁は
+ *   クラッシュ回避用の最小対応で、DST 当日の集計の正しさまでは保証しない。
  */
 export function splitByDayBoundary(
   block: TimeBlock,
 ): Array<{ key: DayKey; start: Date; end: Date }> {
   const result: Array<{ key: DayKey; start: Date; end: Date }> = [];
   let segStart = block.start;
+  // 安全弁: 1区間が分割されるセグメント数は通常たかだか数個。DST 等で segStart が
+  // 前進しなくなっても無限ループでアプリを巻き込まないよう上限で打ち切る。
+  let guard = 0;
   while (segStart.getTime() < block.end.getTime()) {
+    if (++guard > 1000) break;
     const key = lasdoDayKey(segStart);
     const { end: winEnd } = dayWindow(key);
     const segEnd =
