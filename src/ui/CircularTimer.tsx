@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import { formatElapsed, gaugeState } from '../domain/timerGauge';
 import { useTimerStore } from '../store/timerStore';
+import { useElapsedMs } from './useElapsedMs';
 import styles from './CircularTimer.module.css';
 
 /**
@@ -20,25 +20,27 @@ const OUTER_GAP = 9;
 const OUTER_W = 5;
 const INNER_CIRC = 2 * Math.PI * INNER_R;
 
+/**
+ * 経過時間テキストのフォントサイズ（px）。桁が増えても内側リング（内縁=半径58）に
+ * 当たらないよう、文字数に応じて段階的に下げる。
+ * "M:SS"/"MM:SS"=34, "H:MM:SS"=30, "HH:MM:SS" 以上=26。
+ */
+function timeFontSize(text: string): number {
+  if (text.length <= 5) return 34;
+  if (text.length <= 7) return 30;
+  return 26;
+}
+
 export function CircularTimer() {
   const runningSince = useTimerStore((s) => s.runningSince);
   const start = useTimerStore((s) => s.start);
   const stop = useTimerStore((s) => s.stop);
 
-  // 稼働中は1秒ごとに「現在時刻」を更新して経過を進める。
-  // 時刻は state に持ち、レンダー中に Date.now() を読まない（純粋性）。
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!runningSince) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [runningSince]);
-
-  const elapsedMs = runningSince
-    ? Math.max(0, now - runningSince.getTime())
-    : 0;
+  // 稼働中は1秒ごとに経過を進める（共有フックでバナーと同じ計測を使う）。
+  const elapsedMs = useElapsedMs(1000);
   const gauge = gaugeState(elapsedMs);
   const running = runningSince !== null;
+  const timeStr = formatElapsed(elapsedMs);
 
   // 進捗アーク（上から時計回り）。
   const dashOffset = INNER_CIRC * (1 - gauge.progressInUnit);
@@ -88,16 +90,21 @@ export function CircularTimer() {
           />
         ))}
 
-        {/* 集約表示 ×N（4単位以上） */}
+        {/* 集約表示 ×N（4単位以上）。外周リング上端より上に置き、リングと被らせない。 */}
         {gauge.collapsed && (
-          <text className={styles.count} x={C} y={34}>
+          <text className={styles.count} x={C} y={C - OUTER_BASE_R - 8}>
             ×{gauge.completedUnits}
           </text>
         )}
 
         {/* 中央: 経過時間とラベル */}
-        <text className={styles.time} x={C} y={C - 6}>
-          {formatElapsed(elapsedMs)}
+        <text
+          className={styles.time}
+          x={C}
+          y={C - 6}
+          style={{ fontSize: timeFontSize(timeStr) }}
+        >
+          {timeStr}
         </text>
         <text className={styles.label} x={C} y={C + 28}>
           {running ? 'タップで停止' : 'タップで開始'}

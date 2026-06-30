@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 import type { NewTimeBlock } from '../domain/timeBlock';
+import {
+  longRunConfirmMessage,
+  needsLongRunConfirm,
+} from '../domain/timerGuard';
 import { useBlockStore } from './blockStore';
 
 /** 稼働中タイマーの開始時刻を退避する localStorage キー（リロード耐性）。 */
@@ -30,6 +34,18 @@ interface TimerDeps {
   storage?: MinimalStorage;
   /** 現在時刻（テスト用に差し替え可能）。 */
   now?: () => Date;
+  /**
+   * 長時間稼働（消し忘れ疑い）の保存可否を確認する。true=保存。
+   * 既定: window.confirm。window 不在（テスト/SSR）では true（従来どおり保存）。
+   */
+  confirmLongRun?: (elapsedMs: number) => boolean | Promise<boolean>;
+}
+
+function defaultConfirmLongRun(elapsedMs: number): boolean {
+  if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
+    return true;
+  }
+  return window.confirm(longRunConfirmMessage(elapsedMs));
 }
 
 function restore(storage?: MinimalStorage): Date | null {
@@ -41,7 +57,12 @@ function restore(storage?: MinimalStorage): Date | null {
 }
 
 export function createTimerStore(deps: TimerDeps) {
-  const { addBlock, storage, now = () => new Date() } = deps;
+  const {
+    addBlock,
+    storage,
+    now = () => new Date(),
+    confirmLongRun = defaultConfirmLongRun,
+  } = deps;
 
   return create<TimerState>((set, get) => ({
     // 起動時に退避済みの開始時刻を復元（リロード耐性）。
@@ -56,13 +77,22 @@ export function createTimerStore(deps: TimerDeps) {
 
     async stop() {
       const since = get().runningSince;
-      // 先に停止状態へ（UI 即応＋多重 stop の防止）。
+      if (!since) return;
+      // 停止操作の瞬間を区間の終端とする（確認ダイアログ中に伸びない）。
+      const end = now();
+      const elapsedMs = end.getTime() - since.getTime();
+
+      // 消し忘れ疑い（極端に長い）は保存前に確認。拒否ならタイマー継続＝
+      // 何も書き換えないので、内側の記録が吸収・消失する事故を防げる。
+      if (needsLongRunConfirm(elapsedMs) && !(await confirmLongRun(elapsedMs))) {
+        return;
+      }
+
+      // 停止状態へ（UI 即応＋多重 stop の防止）。
       set({ runningSince: null });
       storage?.removeItem(TIMER_STORAGE_KEY);
-      if (!since) return;
-      const end = now();
       // ゼロ幅・逆転は捨てる（addBlock 側でも弾かれるが明示）。
-      if (end.getTime() > since.getTime()) {
+      if (elapsedMs > 0) {
         await addBlock({ start: since, end });
       }
     },

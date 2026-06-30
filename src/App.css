@@ -1,8 +1,16 @@
 .app {
-  max-width: 32rem;
-  margin: 4rem auto;
-  padding: 0 1.5rem;
+  /* #root(width:1126px・border-inline)が外枠。padding を含めて枠内に収める。 */
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 2rem;
   line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .app {
+    padding: 0 1rem;
+  }
 }
 
 .app h1 {

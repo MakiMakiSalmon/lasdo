@@ -5,46 +5,26 @@
   gap: 1.5rem;
 }
 
-.periods {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: center;
-}
-
-.period {
-  appearance: none;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  padding: 0.35rem 0.9rem;
-  border-radius: 999px;
-  font-size: 0.875rem;
-  cursor: pointer;
-}
-.period:hover {
-  border-color: var(--accent-border);
-}
-.period.active {
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
-  color: var(--text-h);
-  font-weight: 600;
-}
-
 .section {
   width: 100%;
   text-align: left;
 }
-.sectionHead {
+
+/* 左=活動カレンダー、右=今週の作業時間。各ブロックは見出し＋チャートを一体に持つので、
+   幅が足りず折り返しても題がチャートに付いてくる（崩れない）。 */
+.topRow {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 2.5rem;
   flex-wrap: wrap;
-  margin-bottom: 0.5rem;
 }
-.sectionHead .periods {
-  justify-content: flex-end;
+.calBlock {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.weekBlock {
+  flex: 1 1 320px;
+  min-width: 260px;
 }
 .sectionTitle {
   font-size: 0.95rem;
