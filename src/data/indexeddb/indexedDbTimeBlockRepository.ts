@@ -1,4 +1,4 @@
-import type { NewTimeBlock, TimeBlock } from '../../domain/timeBlock';
+import type { TimeBlock } from '../../domain/timeBlock';
 import type { TimeBlockRepository } from '../timeBlockRepository';
 import { db, type TimeBlockRow } from './db';
 
@@ -17,10 +17,8 @@ export class IndexedDbTimeBlockRepository implements TimeBlockRepository {
     return rows.map(toBlock);
   }
 
-  async add(block: NewTimeBlock): Promise<TimeBlock> {
-    const created: TimeBlock = { id: crypto.randomUUID(), ...block };
-    await db.timeBlocks.add(toRow(created));
-    return created;
+  async add(block: TimeBlock): Promise<void> {
+    await db.timeBlocks.add(toRow(block));
   }
 
   async update(block: TimeBlock): Promise<void> {
@@ -29,15 +27,5 @@ export class IndexedDbTimeBlockRepository implements TimeBlockRepository {
 
   async delete(id: string): Promise<void> {
     await db.timeBlocks.delete(id);
-  }
-
-  async replaceAll(blocks: TimeBlock[]): Promise<void> {
-    // clear + bulkAdd を1トランザクションで（中断時の不整合を防ぐ）。
-    await db.transaction('rw', db.timeBlocks, async () => {
-      await db.timeBlocks.clear();
-      if (blocks.length > 0) {
-        await db.timeBlocks.bulkAdd(blocks.map(toRow));
-      }
-    });
   }
 }

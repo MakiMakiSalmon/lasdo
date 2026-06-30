@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { reconcile } from '../data/reconcile';
 import { timeBlockRepository } from '../data/repository';
 import type { TimeBlockRepository } from '../data/timeBlockRepository';
 import {
@@ -13,7 +14,8 @@ import {
  *
  * Domain 規則（isValidBlock / mergeBlocks）を適用してから Repository を呼ぶ。
  * UI・集計はこのストア越しにのみデータへ触る（Repository を直接叩かない）。
- * 永続化は MVP の全置換方式（repo.replaceAll）。
+ * 永続化は旧→新の差分反映（reconcile）。触れた区間だけを add/update/delete し、
+ * 書き込み増幅を避け、別タブ/端末の無関係な区間を巻き戻さない。
  */
 export interface BlockState {
   /** マージ済み・start 昇順の区間。 */
@@ -40,22 +42,25 @@ export function createBlockStore(repo: TimeBlockRepository) {
     async addBlock(input) {
       if (!isValidBlock(input)) return;
       const candidate: TimeBlock = { id: crypto.randomUUID(), ...input };
-      const next = mergeBlocks([...get().blocks, candidate]);
-      await repo.replaceAll(next);
+      const prev = get().blocks;
+      const next = mergeBlocks([...prev, candidate]);
+      await reconcile(repo, prev, next);
       set({ blocks: next });
     },
 
     async updateBlock(updated) {
       if (!isValidBlock(updated)) return;
-      const rest = get().blocks.filter((b) => b.id !== updated.id);
+      const prev = get().blocks;
+      const rest = prev.filter((b) => b.id !== updated.id);
       const next = mergeBlocks([...rest, updated]);
-      await repo.replaceAll(next);
+      await reconcile(repo, prev, next);
       set({ blocks: next });
     },
 
     async deleteBlock(id) {
-      const next = get().blocks.filter((b) => b.id !== id);
-      await repo.replaceAll(next);
+      const prev = get().blocks;
+      const next = prev.filter((b) => b.id !== id);
+      await reconcile(repo, prev, next);
       set({ blocks: next });
     },
   }));

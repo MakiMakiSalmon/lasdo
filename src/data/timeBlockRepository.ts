@@ -1,4 +1,4 @@
-import type { NewTimeBlock, TimeBlock } from '../domain/timeBlock';
+import type { TimeBlock } from '../domain/timeBlock';
 
 /**
  * 時間区間の永続化の境界（requirements.md 10章）。
@@ -9,20 +9,18 @@ import type { NewTimeBlock, TimeBlock } from '../domain/timeBlock';
  *
  * これは素の CRUD に徹する。重なりマージ等のドメイン規則
  * （mergeBlocks）は上位（ストア/サービス層）で適用する。
+ *
+ * id はクライアント（ドメイン/ストア）が採番し、追加から同期まで安定させる。
+ * これにより BlockStore は旧→新の差分を id で取り、変更した区間だけを
+ * add/update/delete する（reconcile・detailed-design 5.1）。全置換は廃止。
  */
 export interface TimeBlockRepository {
   /** 全区間を昇順（start 昇順）で返す。 */
   list(): Promise<TimeBlock[]>;
-  /** 新規区間を追加し、採番済みの TimeBlock を返す。 */
-  add(block: NewTimeBlock): Promise<TimeBlock>;
+  /** 採番済みの区間を追加する（id はクライアント生成）。 */
+  add(block: TimeBlock): Promise<void>;
   /** 既存区間を id 一致で更新する。 */
   update(block: TimeBlock): Promise<void>;
   /** 区間を削除する。 */
   delete(id: string): Promise<void>;
-  /**
-   * 全区間を与えた集合で原子的に置き換える（MVP の全置換永続化）。
-   * mergeBlocks で吸収・消滅した区間を残さない最も単純な反映手段。
-   * 件数が増えたら差分反映（reconcile）へ切り替える想定（detailed-design 5.1）。
-   */
-  replaceAll(blocks: TimeBlock[]): Promise<void>;
 }
