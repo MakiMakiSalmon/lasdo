@@ -1,4 +1,4 @@
-import { addDays, format, subHours } from 'date-fns';
+import { addDays, format, subDays } from 'date-fns';
 import type { TimeBlock } from './timeBlock';
 
 /**
@@ -15,10 +15,17 @@ export type DayKey = string;
  *
  * 時刻が 5:00 未満なら前日に属する（深夜は「前日の続き」とみなす）。
  * 例: 6/21 04:30 → "2026-06-20" / 6/21 05:00 → "2026-06-21"。
+ *
+ * 判定は**壁時計の時刻**で行う（実時間 subHours は使わない）。`dayWindow` も
+ * 壁時計(new Date 5:00 + addDays)で窓を作るため、両者が常に整合する。これにより
+ * 任意の instant t について `dayWindow(lasdoDayKey(t)).start <= t < .end` が成立し、
+ * `splitByDayBoundary` のセグメントが必ず前進する（DST 当日の無限ループを根絶。
+ * `subDays` は DST 安全で壁時計時刻を保つ）。
  */
 export function lasdoDayKey(d: Date): DayKey {
-  // 5時間ぶん戻してから暦日を取れば、0:00〜4:59 が自然に前日へ寄る。
-  return format(subHours(d, DAY_START_HOUR), 'yyyy-MM-dd');
+  // 5:00 未満は前日扱い。壁時計の時刻(getHours)で判定し dayWindow と揃える。
+  const day = d.getHours() < DAY_START_HOUR ? subDays(d, 1) : d;
+  return format(day, 'yyyy-MM-dd');
 }
 
 /**
@@ -89,12 +96,10 @@ export function daySegments(
  * - 各セグメントは半開区間 [start, end)。ちょうど境界(5:00)で終わる区間は次日に
  *   ゼロ幅セグメントを作らない。
  *
- * NOTE(DST): `lasdoDayKey` は実時間(subHours)、`dayWindow` は壁時計(new Date+addDays)
- *   で時刻を作るため、DST のある TZ では両者がズレる。spring-forward 当日（1日=23h）に
- *   5:00 境界をまたぐ区間があると winEnd <= segStart となり segStart が前進せず無限ループ
- *   する（タブフリーズ/OOM）。JST 専用の現状では発生しないが、将来 DST 圏ユーザーを
- *   足す場合の根本対応は「winEnd を実時間ベースで求める」こと。下の安全弁は
- *   クラッシュ回避用の最小対応で、DST 当日の集計の正しさまでは保証しない。
+ * DST: `lasdoDayKey` と `dayWindow` をどちらも壁時計ベースに統一したので、任意の
+ *   segStart で winEnd > segStart が必ず成立し、DST 当日（23h/25h）でもセグメントは
+ *   必ず前進する（旧バグ＝実時間 subHours と壁時計 addDays の混在による無限ループは解消）。
+ *   下の安全弁は今や到達しない防御コード（不変条件 winEnd>segStart の保険）。
  */
 export function splitByDayBoundary(
   block: TimeBlock,
@@ -106,11 +111,8 @@ export function splitByDayBoundary(
     const { end: winEnd } = dayWindow(key);
     const segEnd =
       block.end.getTime() < winEnd.getTime() ? block.end : winEnd;
-    // 安全弁: 通常 segEnd は必ず前進する。DST 当日など lasdoDayKey(実時間) と
-    // dayWindow(壁時計) のズレで winEnd <= segStart になると前進しないので、
-    // ゼロ幅/逆順セグメントを push せず即打ち切る。これで「無限ループ」も
-    // 「ゼロ幅セグメントが集計・1px描画に残る」問題も同時に防ぐ（DST 当日の
-    // 集計の正しさまでは保証しない＝根本対応は winEnd を実時間ベースで求めること）。
+    // 防御: lasdoDayKey/dayWindow を壁時計で統一したので winEnd > segStart は不変条件。
+    // 万一 segEnd が前進しない場合のみゼロ幅/逆順セグメントを避けて打ち切る（到達しない想定）。
     if (segEnd.getTime() <= segStart.getTime()) break;
     result.push({ key, start: segStart, end: segEnd });
     segStart = segEnd;
