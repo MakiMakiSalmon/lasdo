@@ -4,12 +4,18 @@
   text-align: left;
 }
 
+/* 曜日行＋時間軸をまとめる縦並びコンテナ（行間・軸との間隔は gap で一元化）。 */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 /* 左=曜日ラベル、右=その曜日の時間帯バー（5:00〜29:00）。 */
 .row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 4px;
 }
 .day {
   flex: none;
@@ -63,7 +69,6 @@
   display: flex;
   justify-content: space-between;
   margin-left: calc(1.4rem + 0.5rem);
-  margin-top: 4px;
   font-size: 10.5px;
   color: var(--text);
 }

@@ -101,15 +101,17 @@ export function splitByDayBoundary(
 ): Array<{ key: DayKey; start: Date; end: Date }> {
   const result: Array<{ key: DayKey; start: Date; end: Date }> = [];
   let segStart = block.start;
-  // 安全弁: 1区間が分割されるセグメント数は通常たかだか数個。DST 等で segStart が
-  // 前進しなくなっても無限ループでアプリを巻き込まないよう上限で打ち切る。
-  let guard = 0;
   while (segStart.getTime() < block.end.getTime()) {
-    if (++guard > 1000) break;
     const key = lasdoDayKey(segStart);
     const { end: winEnd } = dayWindow(key);
     const segEnd =
       block.end.getTime() < winEnd.getTime() ? block.end : winEnd;
+    // 安全弁: 通常 segEnd は必ず前進する。DST 当日など lasdoDayKey(実時間) と
+    // dayWindow(壁時計) のズレで winEnd <= segStart になると前進しないので、
+    // ゼロ幅/逆順セグメントを push せず即打ち切る。これで「無限ループ」も
+    // 「ゼロ幅セグメントが集計・1px描画に残る」問題も同時に防ぐ（DST 当日の
+    // 集計の正しさまでは保証しない＝根本対応は winEnd を実時間ベースで求めること）。
+    if (segEnd.getTime() <= segStart.getTime()) break;
     result.push({ key, start: segStart, end: segEnd });
     segStart = segEnd;
   }

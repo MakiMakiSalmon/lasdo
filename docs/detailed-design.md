@@ -114,23 +114,35 @@ function avgDurationByWeekday(
 ```
 
 - `splitByDayBoundary` で日ごとに切ってから曜日へ合算し、`range` 内のその曜日の日数で割る。
-- 合計でなく**平均/日**にする理由: 期間プリセット（4/12週/全期間）が可変でも、曜日間の比較が範囲内の日数に左右されないため（requirements.md 4.5 / 6.4）。
+- 合計でなく**平均/日**にする理由: 集計窓（直近12週）に含まれる日数が曜日ごとに違っても、曜日間の比較が日数に左右されないため（requirements.md 4.5 / 6.4）。活動カレンダー欄外の曜日平均に使う。
 
-### 3.3 開始/終了時刻の分布（箱ひげ図の素）
+### 3.3 時間帯ヒートマップの素
 
 ```ts
 /**
- * 各 lasdo 日の「最初の区間の開始」「最後の区間の終了」を集める。
- * minBlockMinutes 未満の区間は開始/終了の判定から無視する（既定 0＝無効）。
+ * 曜日×時間帯の「平均アクティブ分/日」を返す（既定 1時間枠・5:00〜29:00 = 24枠）。
+ * またぎは分割し、枠境界でさらに割って枠ごとに合算 → その曜日の日数で割る。
  */
-function dailyStartEnd(
+function avgMinutesByWeekdayHour(
   blocks: TimeBlock[],
-  minBlockMinutes = 5,
-): Array<{ key: string; startMin: number; endMin: number }>;
+  range: { from: Date; to: Date },
+  bucketMinutes = 60,
+): WeekdayHourHeatmap;
 ```
 
-- `startMin`/`endMin` は 5:00 起点の経過分（0〜1440）。タイムライン軸 5:00〜29:00 と整合。
-- **既知の穴の補正**（requirements.md 6.4）: 朝/深夜の極短区間で開始/終了がズレるため、`minBlockMinutes` 未満の区間は開始/終了判定から無視する。**MVP既定 = 5分**（`MIN_BLOCK_MINUTES = 5`、定数で調整可）。duration合計には影響しない。
+- 分母は `avgDurationByWeekday` と揃え「最初に記録した日以降のその曜日の日数」。使い始めで件数が少ないとき平均が薄まるのを避ける。
+
+### 3.4 活動カレンダー（草）／今週の素
+
+```ts
+/** lasdo 日キーごとのアクティブ時間合計（ミリ秒）。記録のない日はキーを持たない。 */
+function dailyActiveMs(
+  blocks: TimeBlock[],
+  range: { from: Date; to: Date },
+): Map<DayKey, number>;
+```
+
+- 活動カレンダー（1マス=1日）と今週チャート（日別バー）の共通の素。`splitByDayBoundary` で日ごとに切り、`range` でクリップして日キーに合算する。
 
 ---
 
@@ -256,7 +268,7 @@ interface ViewStore {
 ## 6. UI 仕様
 
 > **プラットフォーム方針（MVP）**: requirements.md 4.8 は「PC/スマホで根本的に作り分け」だが、**MVPは PC 先行**（スマホは後回し）。
-> 作業中にPCで記録する動線・ECharts分析の見やすさ・開発速度を優先する。データ/ロジック/ストアは共通なので、後からスマホ用 Presentation を `src/ui/` 配下に足すだけで分離できる（土台は無駄にならない）。
+> 作業中にPCで記録する動線・分析チャートの見やすさ・開発速度を優先する。データ/ロジック/ストアは共通なので、後からスマホ用 Presentation を `src/ui/` 配下に足すだけで分離できる（土台は無駄にならない）。
 
 ### 6.1 円形タイマー（自前 SVG）requirements.md 4.7
 
@@ -272,14 +284,14 @@ interface ViewStore {
 - `splitByDayBoundary` で当日窓に切ったアクティブ帯を濃色で描画。記録なし=空白。
 - 深夜またぎは前後日の窓にまたいで描かれる（データは1件のまま）。
 
-### 6.3 分析（ECharts）
+### 6.3 分析（自前描画）
 
-- 期間: **プリセット選択（直近4週／12週／全期間）**のトグルを画面上部に1つ。既定=直近4週。選択した `range` で全チャートを再集計（同一の filtered blocks を共有）。
-- 曜日別棒: `avgDurationByWeekday(blocks, range)` を棒グラフへ（**平均/日**）。
-- 箱ひげ: `dailyStartEnd` の `startMin`/`endMin` 分布を box plot へ。**曜日別7箱 ⇄ 全体1本のトグル切替**に対応（既定=曜日別）。
-  - 集計関数を粒度引数で共通化する想定: `boxStats(rows, groupBy: 'weekday' | 'all')`。曜日別は7群、全体は1群を返す同一経路。
-  - 12週プリセットは曜日別箱のサンプル数（各曜日≒12点）を確保する狙いも兼ねる。
-- 開始/終了の極短区間補正: `dailyStartEnd` の `minBlockMinutes`（既定 **5分**）で吸収（6.4）。
+- 期間プリセットは廃止。集計は**固定窓（直近12週 = `recentRange`）**で、各チャートが内部で同じ窓を共有する（画面上部の期間トグルは置かない）。
+- すべて**自前描画**（SVG／CSS グリッド）。ECharts は使っていない。
+- 活動カレンダー: `dailyActiveMs(blocks, range)` を GitHub の草風に1マス=1日の活動量として並べ、欄外に `avgDurationByWeekday(blocks, range)`（**平均/日**）を曜日ごとに添える。
+- 今週: `dailyActiveMs` を今週（日曜起点）の日別アクティブ時間として横棒で表示。
+- 時間帯ヒートマップ: `avgMinutesByWeekdayHour(blocks, range)` を曜日×時間帯（1時間枠・5:00〜29:00）の濃淡で描く（「いつ動く人か＝リズムの型」）。
+- 箱ひげ図（開始/終了時刻の分布）は**保留**（9章 残課題）。曜日別棒グラフは活動カレンダーの欄外平均に統合して廃止した。
 
 ### 6.4 編集フォーム
 
@@ -296,10 +308,11 @@ interface ViewStore {
 |------|------|
 | `isValidBlock` | 正常 / ゼロ幅 / 逆転 |
 | `mergeBlocks` | 重なり統合 / 隣接統合 / 非重複維持 / 不正除外 / id 引き継ぎ |
-| `splitByDayBoundary` | 5:00 前後 / 深夜またぎ / ちょうど境界 |
+| `splitByDayBoundary` | 5:00 前後 / 深夜またぎ / ちょうど境界 / DST非前進で打ち切り |
 | `activeDurationMs` | 部分重なり / 完全内包 / 範囲外 |
-| `durationByWeekday` | またぎ分割の曜日割当 |
-| `dailyStartEnd` | 複数区間日 / 単一区間日 / 5:00起点の分換算 |
+| `avgDurationByWeekday` | またぎ分割の曜日割当 / 平均=合計÷日数 |
+| `avgMinutesByWeekdayHour` | 枠境界での分割 / 曜日×時間帯の平均 |
+| `dailyActiveMs` | 日ごと合算 / range クリップ / 記録なし日 |
 
 - 既存 `src/domain/timeBlock.test.ts` を踏襲し、各ドメイン関数に `*.test.ts` を併設。
 - State 層は Repository をモックして差分永続化の整合を検証。
@@ -320,8 +333,7 @@ requirements.md 9章と対応。
 
 ### 確定（2026-06-21）
 - タイマー単位時間 = **25分**、`×N` 集約 = **外周3本/4本目以降集約**（6.1）。
-- 分析: 期間 = **プリセット（直近4週/12週/全期間、既定4週）**、曜日別棒 = **平均/日**、箱ひげ = **曜日別7箱 ⇄ 全体1本トグル**（3.2 / 6.3）。
-- 箱ひげ極短区間補正 = **`minBlockMinutes` 既定5分**（開始/終了判定のみ。duration不影響）（3.3 / 6.3）。
+- 分析: 期間プリセットは廃止し**固定窓（直近12週）**。構成 = 活動カレンダー（草＋曜日平均/日）＋今週＋時間帯ヒートマップ。曜日別棒グラフは欄外平均へ統合して廃止、箱ひげは保留（3.2〜3.4 / 6.3）。
 - フェーズ1画面 = **記録／分析／編集の3つ**。設定値は定数で保持。
 - タイマー稼働中の**リロード耐性をMVPに含める**（localStorage退避／5.2）。
 - 名前の由来 = **"last do"**（過去にやったこと＝実績の逆引き）。
@@ -330,9 +342,9 @@ requirements.md 9章と対応。
 - ブロック永続化 = **MVPは全置換方式（clear + bulkAdd）**。件数増で差分 reconcile に切替（5.1）。
 
 ### 残課題（任意・将来）
-- 分析の期間プリセットの追加・任意レンジ指定 — 必要になれば。
-- 極短区間補正値（`MIN_BLOCK_MINUTES`）の調整 — 実データで合わなければ。
-- 箱ひげの「一定以上の空白で区切る」高度な補正 — 5分無視で足りなければ。
+- 箱ひげ図（開始/終了時刻の分布）の実装 — 保留中。作るなら極短区間補正（`MIN_BLOCK_MINUTES` 既定5分・開始/終了判定のみ／duration不影響）と「一定以上の空白で区切る」補正もそこで詰める。
+- 分析の期間プリセット復活・任意レンジ指定 — 必要になれば（現状は固定窓 直近12週）。
+- `splitByDayBoundary` の DST 根本対応 — `winEnd` を実時間ベースで求める（現状は非前進で打ち切る安全弁のみ。JST 専用なら不要）。
 - スマホ版 UI の追加（`ui/` を platform 別に分離）。
 - 差分 reconcile への移行（件数が増えたら）。
 </content>
