@@ -45,8 +45,8 @@ function countDaysByWeekday(from: Date, to: Date): Record<number, number> {
  * 各区間を lasdo 日に割り当て（またぎは分割）、曜日(0=日..6=土)ごとの
  * 平均アクティブ時間/日（ミリ秒）を返す。
  *
- * 合計を「対象期間に含まれるその曜日の日数」で割るため、期間プリセット
- * （4週/12週/全期間）が可変でも曜日間で公平に比較できる（requirements.md 4.5 / 6.4）。
+ * 合計を「対象期間に含まれるその曜日の日数」で割るため、集計窓（直近12週固定）でも
+ * 曜日間で公平に比較できる（requirements.md 4.5 / 6.4）。
  * 該当日数 0 の曜日は 0 を返す。
  */
 export function avgDurationByWeekday(

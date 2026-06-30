@@ -3,7 +3,7 @@ import { dayWindow, lasdoDayKey } from './dayBoundary';
 
 /**
  * 分析チャートの集計期間（週）。プリセット選択は廃止し、直近◯週に固定する。
- * 12週 = 曜日別箱ひげで各曜日≒12点を確保できる下限（requirements.md 6.3）。
+ * 12週 = 時間帯ヒートマップで各曜日≒12点を確保できる下限（requirements.md 6.3）。
  */
 export const ANALYSIS_WEEKS = 12;
 
