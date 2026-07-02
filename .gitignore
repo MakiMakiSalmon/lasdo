@@ -25,6 +25,8 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+.env.local
+secret/
 
 # --- Claude Code（個人ローカル設定は共有しない） ---
 .claude/settings.local.json
