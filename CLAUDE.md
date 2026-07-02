@@ -43,7 +43,7 @@
 
 ## 開発フロー
 
-- **PR ベース運用**。`main` への直接 push は不可（保護済み）。feature ブランチ → PR → セルフマージ。
+- **PR ベース運用**。`main`・`develop` への直接 push は不可（共に保護済み）。feature ブランチ → `develop` へ PR → セルフマージ。`develop` が安定したら `develop` → `main` へ PR してリリース。
 - コミット/PR は Conventional Commits（`feat:`／`fix:`／`chore:`／`docs:`／`refactor:`）。要約は日本語で簡潔に。
 - 詳細は [docs/git-workflow.md](docs/git-workflow.md)。
 
